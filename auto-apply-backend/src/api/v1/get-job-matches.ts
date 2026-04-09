@@ -52,7 +52,12 @@ export async function handleGetJobMatchesRequest(
   }
 
   const query = [profile.headline, ...(profile.skills ?? [])].filter(Boolean).join(" ");
-  const jobs = await discoverJobs(query);
+  const jobs = await discoverJobs(query, {
+    remoteOnly: parsed.data.filters?.remote ?? false,
+    location: parsed.data.filters?.location ?? "",
+    greenhouseBoardTokens: parseCsvEnv(env.GREENHOUSE_BOARD_TOKENS),
+    leverCompanyTokens: parseCsvEnv(env.LEVER_COMPANY_TOKENS),
+  });
   const matches = await rankJobMatches(profile, jobs.slice(0, parsed.data.limit ?? 20));
   const matchesWithJobDetails = matches
     .map((match) => {
@@ -81,4 +86,11 @@ export async function handleGetJobMatchesRequest(
       requestId,
     ),
   );
+}
+
+function parseCsvEnv(value?: string) {
+  return (value ?? "")
+    .split(",")
+    .map((item) => item.trim())
+    .filter(Boolean);
 }

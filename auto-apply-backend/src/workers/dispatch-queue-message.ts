@@ -51,13 +51,16 @@ export type QueueMessage =
 
 export async function dispatchQueueMessage(
   message: QueueMessage,
-  env?: Pick<Env, "RESEND_API_KEY" | "RESEND_FROM_EMAIL">,
+  env?: Pick<
+    Env,
+    "RESEND_API_KEY" | "RESEND_FROM_EMAIL" | "GREENHOUSE_BOARD_TOKENS" | "LEVER_COMPANY_TOKENS"
+  >,
 ) {
   switch (message.type) {
     case "parse_resume":
       return processParseResumeJob(message);
     case "fetch_jobs":
-      return processFetchJobsJob(message);
+      return processFetchJobsJob(message, env);
     case "match_jobs":
       return processMatchJobsJob(message);
     case "tailor_resume":

@@ -1,5 +1,13 @@
-import { describe, expect, it } from "vitest";
-import { dedupeJobs, discoverJobs, runSourceAdapters, type DiscoveredJob } from "../discover-jobs";
+import { describe, expect, it, vi } from "vitest";
+import {
+  buildJobSourceAdapters,
+  createGreenhouseBoardAdapter,
+  createLeverBoardAdapter,
+  dedupeJobs,
+  discoverJobs,
+  runSourceAdapters,
+  type DiscoveredJob,
+} from "../discover-jobs";
 
 describe("discoverJobs", () => {
   it("returns matching jobs from the built-in catalog", async () => {
@@ -13,6 +21,14 @@ describe("discoverJobs", () => {
     const jobs = await discoverJobs("medical billing specialist");
 
     expect(jobs).toEqual([]);
+  });
+
+  it("filters by remote-only and location preferences", async () => {
+    const remoteJobs = await discoverJobs("", { remoteOnly: true });
+    expect(remoteJobs.every((job) => job.remote)).toBe(true);
+
+    const locationJobs = await discoverJobs("", { location: "San Francisco" });
+    expect(locationJobs.some((job) => job.location.includes("San Francisco"))).toBe(true);
   });
 });
 
@@ -84,5 +100,91 @@ describe("runSourceAdapters", () => {
 
     expect(jobs).toHaveLength(1);
     expect(jobs[0].source).toBe("working");
+  });
+});
+
+describe("buildJobSourceAdapters", () => {
+  it("always includes the internal catalog and adds external adapters when configured", () => {
+    const adapters = buildJobSourceAdapters({
+      greenhouseBoardTokens: ["acme"],
+      leverCompanyTokens: ["beta"],
+      fetchImpl: vi.fn() as unknown as typeof fetch,
+    });
+
+    expect(adapters.map((adapter) => adapter.name)).toEqual(
+      expect.arrayContaining(["internal-catalog", "greenhouse", "lever"]),
+    );
+  });
+});
+
+describe("Greenhouse adapter", () => {
+  it("normalizes greenhouse jobs into the internal schema", async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          jobs: [
+            {
+              id: 123,
+              title: "Platform Engineer",
+              absolute_url: "https://example.com/greenhouse/123",
+              content: "Work remotely with Postgres and TypeScript.",
+              location: { name: "Remote" },
+              updated_at: "2026-01-01T00:00:00Z",
+              metadata: { department: "Platform" },
+            },
+          ],
+        }),
+      ),
+    );
+
+    const adapter = createGreenhouseBoardAdapter({
+      boardTokens: ["acme"],
+      fetchImpl: fetchImpl as unknown as typeof fetch,
+    });
+
+    const jobs = await adapter.search("platform");
+
+    expect(jobs).toHaveLength(1);
+    expect(jobs[0]).toMatchObject({
+      source: "greenhouse",
+      title: "Platform Engineer",
+      company: "acme",
+      remote: true,
+    });
+  });
+});
+
+describe("Lever adapter", () => {
+  it("normalizes lever jobs into the internal schema", async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify([
+          {
+            id: "abc123",
+            text: "Backend Engineer",
+            company: "Acme",
+            location: "San Francisco, CA",
+            description: "Build backend systems.",
+            hostedUrl: "https://example.com/lever/abc123",
+            createdAt: 1710000000000,
+          },
+        ]),
+      ),
+    );
+
+    const adapter = createLeverBoardAdapter({
+      companyTokens: ["acme"],
+      fetchImpl: fetchImpl as unknown as typeof fetch,
+    });
+
+    const jobs = await adapter.search("backend");
+
+    expect(jobs).toHaveLength(1);
+    expect(jobs[0]).toMatchObject({
+      source: "lever",
+      title: "Backend Engineer",
+      company: "Acme",
+      remote: false,
+    });
   });
 });

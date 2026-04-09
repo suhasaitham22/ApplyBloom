@@ -1,15 +1,30 @@
 import { discoverJobs } from "@/services/discover-jobs";
 
-export async function processFetchJobsJob(message: {
-  user_id: string;
-  profile_id: string;
-  request_id: string;
-}) {
-  const jobs = await discoverJobs(message.profile_id);
+type FetchJobsEnv = Pick<Env, "GREENHOUSE_BOARD_TOKENS" | "LEVER_COMPANY_TOKENS">;
+
+export async function processFetchJobsJob(
+  message: {
+    user_id: string;
+    profile_id: string;
+    request_id: string;
+  },
+  env?: FetchJobsEnv,
+) {
+  const jobs = await discoverJobs(message.profile_id, {
+    greenhouseBoardTokens: parseCsvEnv(env?.GREENHOUSE_BOARD_TOKENS),
+    leverCompanyTokens: parseCsvEnv(env?.LEVER_COMPANY_TOKENS),
+  });
 
   return {
     user_id: message.user_id,
     request_id: message.request_id,
     jobs,
   };
+}
+
+function parseCsvEnv(value?: string) {
+  return (value ?? "")
+    .split(",")
+    .map((item) => item.trim())
+    .filter(Boolean);
 }
