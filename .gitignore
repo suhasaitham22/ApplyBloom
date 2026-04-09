@@ -1,0 +1,17 @@
+node_modules/
+**/node_modules/
+.next/
+**/.next/
+dist/
+**/dist/
+build/
+**/build/
+.wrangler/
+**/.wrangler/
+coverage/
+**/coverage/
+.env
+.env.*
+!.env.example
+*.log
+.DS_Store
