@@ -22,6 +22,7 @@ This project should keep provider configuration explicit and versioned in docs.
 
 - `SUPABASE_URL`
 - `SUPABASE_SERVICE_ROLE_KEY`
+- `SUPABASE_PROJECT_REF`
 - `RESEND_API_KEY`
 - `RESEND_WEBHOOK_SECRET`
 - `CLOUDFLARE_ACCOUNT_ID`
@@ -55,8 +56,10 @@ Needs:
 Needs:
 
 - project URL
+- project ref
 - anon key
 - service role key
+- database password for `supabase link`
 
 ### Resend
 

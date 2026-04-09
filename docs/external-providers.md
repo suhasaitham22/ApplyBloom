@@ -28,11 +28,13 @@ This document tracks what we need from each external provider before a full prod
 ### Needed From Supabase
 
 - Project URL
+- Project ref
 - anon key for frontend auth/client usage
 - service role key for backend server-side operations
 - Auth configuration
 - Storage buckets
 - Postgres database
+- database password or access token for CLI linking
 
 ### What We Need to Build
 
@@ -156,4 +158,3 @@ Before integrating a provider, record:
 - what data leaves our system
 - what failure mode should be isolated
 - what tests must exist before merge
-
