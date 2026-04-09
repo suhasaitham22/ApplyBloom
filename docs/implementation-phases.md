@@ -11,8 +11,10 @@ This is the execution map for the project. Each phase is designed to reuse exist
 - [Storage Decision](./storage-decision.md)
 - [Testing Strategy](./testing-strategy.md)
 - [External Providers](./external-providers.md)
+- [Product Modes](./product-modes.md)
 - [Environment Variables](./environment-variables.md)
 - [Repo Porting Tracker](./repo-reuse-tracker.md)
+- [Repo Reuse Findings](./repo-reuse-findings.md)
 - [Reuse vs Porting Policy](./reuse-vs-porting-policy.md)
 - [Backend API Contract](./backend-api-contract.md)
 - [Phase 1 - Foundation](./phases/phase-1-foundation.md)
@@ -29,7 +31,7 @@ This is the execution map for the project. Each phase is designed to reuse exist
 2. Resume parsing and user profile creation.
 3. Job ingestion and normalization.
 4. Matching and tailored resume generation.
-5. Queue-backed application automation.
+5. Queue-backed application automation for both auto-apply and single-job modes.
 6. Tracking, notifications, and audit logs.
 7. Reliability, security, and deployment hardening.
 

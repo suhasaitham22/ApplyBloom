@@ -20,9 +20,16 @@ ApplyBoom is an AI-assisted job application platform built as two separate codeb
 1. Upload a resume in the frontend.
 2. The backend parses it into structured profile data.
 3. The system fetches and ranks matching jobs.
-4. A tailored resume is generated for a selected job.
-5. The application is queued or planned for submission.
+4. In auto-apply mode, the system automatically applies to matching jobs.
+5. In single-job mode, the user selects a job, the system tailors the resume, and then applies only to that job.
 6. Status updates and notifications are recorded in the dashboard.
+
+## Product Modes
+
+ApplyBoom has two main workflows:
+
+- Auto-apply mode: resume upload triggers job discovery, ranking, and queued application execution for suitable jobs.
+- Single-job tailor-apply mode: the user picks one job, the system tailors the resume for that job, and applies only there.
 
 ## Authentication decision
 

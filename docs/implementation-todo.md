@@ -54,6 +54,8 @@ This is the ordered build list for the platform.
 - [ ] Implement queue consumers
 - [ ] Implement Playwright worker adapter
 - [ ] Add retry and idempotency protections
+- [ ] Add auto-apply batch mode orchestration
+- [ ] Add single-job tailor-apply mode orchestration
 - [ ] Add tests for queue behavior and failure isolation
 
 ## Phase 7: Notifications

@@ -16,7 +16,8 @@ Frontend repository for the AI Auto Job Apply Platform.
 - users sign in
 - users upload a resume
 - users review ranked jobs
-- users request tailored resumes
+- users run auto-apply mode
+- users request tailored resumes for a single job
 - users track application status
 - users read notifications
 

@@ -20,6 +20,8 @@ Backend repository for the AI Auto Job Apply Platform.
 - accepts resume uploads from the frontend
 - parses resumes into structured profiles
 - discovers and ranks jobs
+- supports auto-apply batch orchestration
+- supports single-job tailor + apply orchestration
 - produces tailored resume artifacts
 - queues application work
 - records application and notification state
