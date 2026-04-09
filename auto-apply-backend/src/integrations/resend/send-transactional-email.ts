@@ -31,11 +31,11 @@ export async function sendTransactionalEmail(
     headers: {
       Authorization: `Bearer ${env.RESEND_API_KEY}`,
       "Content-Type": "application/json",
-      "User-Agent": "ApplyBoom/1.0",
+      "User-Agent": "ApplyBloom/1.0",
       ...(payload.idempotencyKey ? { "Idempotency-Key": payload.idempotencyKey } : {}),
     },
     body: JSON.stringify({
-      from: payload.from ?? env.RESEND_FROM_EMAIL ?? "ApplyBoom <onboarding@resend.dev>",
+      from: payload.from ?? env.RESEND_FROM_EMAIL ?? "ApplyBloom <onboarding@resend.dev>",
       to: [payload.to],
       subject: payload.subject,
       html: payload.html,
