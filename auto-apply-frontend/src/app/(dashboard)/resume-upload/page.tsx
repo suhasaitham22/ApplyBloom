@@ -1,13 +1,13 @@
-import { ResumeUploadForm } from "@/components/resume-upload-form";
+import { ResumeWorkflowStudio } from "@/components/resume-workflow-studio";
+import { loadDashboardSnapshot } from "@/lib/load-dashboard-snapshot";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
-export default function ResumeUploadPage() {
+export default async function ResumeUploadPage() {
+  const snapshot = await loadDashboardSnapshot();
+
   return (
-    <main>
-      <h1>Upload Resume</h1>
-      <ResumeUploadForm />
-    </main>
+    <ResumeWorkflowStudio snapshot={snapshot} />
   );
 }

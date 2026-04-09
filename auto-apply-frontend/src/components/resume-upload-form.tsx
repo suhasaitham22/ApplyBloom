@@ -25,11 +25,19 @@ export function ResumeUploadForm() {
   }
 
   return (
-    <section aria-label="Resume upload form">
-      <form onSubmit={handleSubmit}>
-        <label htmlFor="resume">Resume</label>
-        <input id="resume" name="resume" type="file" />
-        <button type="submit">Upload resume</button>
+    <section className="soft-card summary-card" aria-label="Resume upload form">
+      <div className="eyebrow">
+        <span className="eyebrow-dot" />
+        Resume upload
+      </div>
+      <form onSubmit={handleSubmit} className="section-stack" style={{ marginTop: "0.9rem" }}>
+        <label className="field-stack" htmlFor="resume">
+          <span>Resume</span>
+          <input id="resume" name="resume" type="file" />
+        </label>
+        <button type="submit" className="primary-button" style={{ width: "fit-content" }}>
+          Upload resume
+        </button>
       </form>
     </section>
   );
