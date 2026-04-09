@@ -1,5 +1,5 @@
-import { describe, expect, it } from "vitest";
-import { resetRuntimeStore, saveRuntimeProfile } from "@/lib/state/runtime-store";
+import { describe, expect, it, vi } from "vitest";
+import { resetRuntimeStore, saveRuntimeProfile } from "../../lib/state/runtime-store";
 import { sendNotification } from "../send-notification";
 
 describe("sendNotification", () => {
@@ -57,7 +57,7 @@ describe("sendNotification", () => {
         },
         {
           RESEND_API_KEY: "re_test",
-          RESEND_FROM_EMAIL: "ApplyBoom <onboarding@resend.dev>",
+          RESEND_FROM_EMAIL: "ApplyBloom <onboarding@resend.dev>",
         },
       ),
     ).resolves.toMatchObject({

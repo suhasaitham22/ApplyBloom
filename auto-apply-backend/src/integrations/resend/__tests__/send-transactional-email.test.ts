@@ -32,7 +32,7 @@ describe("sendTransactionalEmail", () => {
       },
       {
         RESEND_API_KEY: "re_test",
-        RESEND_FROM_EMAIL: "ApplyBoom <onboarding@resend.dev>",
+        RESEND_FROM_EMAIL: "ApplyBloom <onboarding@resend.dev>",
       },
     );
 

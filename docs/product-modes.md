@@ -1,6 +1,6 @@
-# ApplyBoom Product Modes
+# ApplyBloom Product Modes
 
-ApplyBoom should support two primary workflows.
+ApplyBloom should support two primary workflows.
 
 ## 1. Auto-Apply Mode
 
@@ -40,4 +40,3 @@ Flow:
 ## Product Rule
 
 The backend should treat auto-apply as the default batch workflow and single-job tailoring as the focused workflow.
-

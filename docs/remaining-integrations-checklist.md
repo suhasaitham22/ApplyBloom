@@ -1,6 +1,6 @@
 # Remaining Integrations Checklist
 
-This is the current integration priority order for ApplyBoom.
+This is the current integration priority order for ApplyBloom.
 
 ## 1. Job Source Ingestion
 

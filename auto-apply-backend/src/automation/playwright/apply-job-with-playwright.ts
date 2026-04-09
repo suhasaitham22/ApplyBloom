@@ -83,7 +83,11 @@ export async function applyJobWithPlaywright(
       error_message: error instanceof Error ? error.message : "Browser automation failed",
     };
   } finally {
-    await browser.close().catch(() => undefined);
+    try {
+      await browser.close();
+    } catch {
+      // Ignore browser shutdown failures to avoid masking result handling.
+    }
     if (tempResumePath) {
       await rm(tempResumePath, { force: true, recursive: true }).catch(() => undefined);
     }
@@ -104,7 +108,7 @@ async function resolveResumePath(request: BrowserApplicationRequest) {
     throw new Error("A resume PDF path or base64 payload is required");
   }
 
-  const directory = await mkdtemp(join(tmpdir(), "applyboom-resume-"));
+  const directory = await mkdtemp(join(tmpdir(), "applybloom-resume-"));
   const path = join(directory, "resume.pdf");
   await writeFile(path, Buffer.from(request.resume_pdf_base64, "base64"));
   return path;
