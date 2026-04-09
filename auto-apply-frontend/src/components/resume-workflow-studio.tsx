@@ -1,102 +1,204 @@
 "use client";
 
-import { useMemo, useState, type ChangeEvent, type FormEvent } from "react";
-import { createApplicationInBackend, requestResumeTailoring, uploadResumeToBackend } from "@/lib/auto-apply-backend";
+import { useEffect, useMemo, useState, type ChangeEvent, type FormEvent } from "react";
+import Image from "next/image";
+import Link from "next/link";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { ResumeRichTextEditor } from "@/components/resume-rich-text-editor";
+import {
+  createApplicationInBackend,
+  requestResumeTailoring,
+  uploadResumeToBackend,
+} from "@/lib/auto-apply-backend";
+import {
+  DEFAULT_JOB_STUDIO_PREFERENCES,
+  JOB_STUDIO_PREFERENCES_STORAGE_KEY,
+  JOB_STUDIO_RESUME_DRAFT_STORAGE_KEY,
+  JOB_SOURCE_OPTIONS,
+  JOB_TYPE_OPTIONS,
+  SENIORITY_OPTIONS,
+  normalizeJobStudioPreferences,
+  type JobSourceOption,
+  type JobStudioMode,
+  type JobStudioPreferences,
+  type JobTypeOption,
+  type SeniorityOption,
+} from "@/lib/job-studio-preferences";
 import type { DashboardSnapshot } from "@/lib/load-dashboard-snapshot";
-import type { JobMatchSummary } from "@/lib/api-types";
-
-const jobTypes = ["Full-time", "Part-time", "Contract", "Remote only"] as const;
-const seniorities = ["Junior", "Mid-level", "Senior", "Lead / Staff"] as const;
-const sources = ["LinkedIn", "Indeed", "Greenhouse", "Lever", "Workday", "Wellfound"] as const;
 
 export function ResumeWorkflowStudio({
   snapshot,
 }: Readonly<{
   snapshot: DashboardSnapshot;
 }>) {
-  const [mode, setMode] = useState<"auto" | "single">("auto");
-  const [jobType, setJobType] = useState<(typeof jobTypes)[number]>("Full-time");
-  const [seniority, setSeniority] = useState<(typeof seniorities)[number]>("Mid-level");
-  const [selectedSources, setSelectedSources] = useState<string[]>(["LinkedIn", "Greenhouse", "Lever"]);
-  const [matchScore, setMatchScore] = useState(75);
-  const [dailyCap, setDailyCap] = useState(50);
-  const [remoteOnly, setRemoteOnly] = useState(false);
-  const [location, setLocation] = useState("Remote · United States");
-  const [blacklistedCompanies, setBlacklistedCompanies] = useState("Amazon, Meta");
+  const matches = snapshot.matches.length > 0 ? snapshot.matches : FALLBACK_MATCHES;
+  const [mode, setMode] = useState<JobStudioMode>(DEFAULT_JOB_STUDIO_PREFERENCES.mode);
+  const [jobType, setJobType] = useState<JobTypeOption>(DEFAULT_JOB_STUDIO_PREFERENCES.jobType);
+  const [seniority, setSeniority] = useState<SeniorityOption>(
+    DEFAULT_JOB_STUDIO_PREFERENCES.seniority,
+  );
+  const [selectedSources, setSelectedSources] = useState<JobSourceOption[]>(
+    DEFAULT_JOB_STUDIO_PREFERENCES.selectedSources,
+  );
+  const [matchScore, setMatchScore] = useState(DEFAULT_JOB_STUDIO_PREFERENCES.matchScore);
+  const [dailyCap, setDailyCap] = useState(DEFAULT_JOB_STUDIO_PREFERENCES.dailyCap);
+  const [remoteOnly, setRemoteOnly] = useState(DEFAULT_JOB_STUDIO_PREFERENCES.remoteOnly);
+  const [location, setLocation] = useState(DEFAULT_JOB_STUDIO_PREFERENCES.location);
+  const [blacklistedCompanies, setBlacklistedCompanies] = useState(
+    DEFAULT_JOB_STUDIO_PREFERENCES.blacklistedCompanies,
+  );
+
   const [resumeFileName, setResumeFileName] = useState("No file selected");
-  const [resumePreview, setResumePreview] = useState(DEFAULT_RESUME_PREVIEW);
+  const [resumeDraft, setResumeDraft] = useState(DEFAULT_RESUME_DRAFT);
+  const [resumeEditorSeed, setResumeEditorSeed] = useState(0);
   const [parsedSummary, setParsedSummary] = useState(DEFAULT_PARSED_SUMMARY);
-  const [statusMessage, setStatusMessage] = useState("Ready for a new resume.");
-  const [selectedJobId, setSelectedJobId] = useState(snapshot.matches[0]?.id ?? "");
+
+  const [assistantInput, setAssistantInput] = useState("");
+  const [statusMessage, setStatusMessage] = useState("Ready.");
+  const [selectedJobId, setSelectedJobId] = useState(matches[0]?.id ?? "");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const selectedJob = useMemo(
-    () => snapshot.matches.find((job) => job.id === selectedJobId) ?? snapshot.matches[0] ?? null,
-    [selectedJobId, snapshot.matches],
+    () => matches.find((job) => job.id === selectedJobId) ?? matches[0] ?? null,
+    [matches, selectedJobId],
   );
 
   const tailoredPreview = useMemo(() => {
     if (!selectedJob) {
       return {
-        headline: "Tailored resume will appear here",
-        summary: "Select a job and ApplyBoom will show the rewritten resume preview here.",
-        bullets: [
-          "Experience section aligned to the role",
-          "Skills reordered for the target job",
-          "Summary rewritten for the selected mode",
-        ],
+        headline: "Tailored resume preview",
+        summary: "Choose a target job to see edits.",
+        bullets: ["Experience reordered", "Skills prioritized", "Summary adapted"],
       };
     }
-
-    const bullets = [
-      `Headline aligned to ${selectedJob.title}`,
-      `Summary tuned for ${selectedJob.company}`,
-      `Emphasis shifted to ${selectedJob.location ?? "location-free"} opportunity`,
-    ];
-
     return {
-      headline: `${selectedJob.title} ready`,
-      summary:
-        selectedJob.reason ?? "The tailored draft highlights the strongest fit signals for this role.",
-      bullets,
+      headline: `${selectedJob.title} optimized`,
+      summary: selectedJob.reason ?? "Draft aligned to role requirements.",
+      bullets: [
+        `Headline aligned to ${selectedJob.title}`,
+        `Summary aligned to ${selectedJob.company}`,
+        `Location fit aligned to ${selectedJob.location ?? "job constraints"}`,
+      ],
     };
   }, [selectedJob]);
 
-  async function handleFileSelection(event: ChangeEvent<HTMLInputElement>) {
-    const file = event.currentTarget.files?.[0];
-    if (!file) {
+  useEffect(() => {
+    if (typeof window === "undefined") {
       return;
     }
+    const storedPreferences = window.localStorage.getItem(JOB_STUDIO_PREFERENCES_STORAGE_KEY);
+    const storedDraft = window.localStorage.getItem(JOB_STUDIO_RESUME_DRAFT_STORAGE_KEY);
 
-    setResumeFileName(file.name);
-    setStatusMessage("Parsing resume...");
+    if (storedPreferences) {
+      try {
+        const parsed = normalizeJobStudioPreferences(
+          JSON.parse(storedPreferences) as Partial<JobStudioPreferences>,
+        );
+        setMode(parsed.mode);
+        setJobType(parsed.jobType);
+        setSeniority(parsed.seniority);
+        setSelectedSources(parsed.selectedSources);
+        setMatchScore(parsed.matchScore);
+        setDailyCap(parsed.dailyCap);
+        setRemoteOnly(parsed.remoteOnly);
+        setLocation(parsed.location);
+        setBlacklistedCompanies(parsed.blacklistedCompanies);
+      } catch {
+        // keep defaults
+      }
+    }
 
-    const text = await file.text();
-    setResumePreview(text.slice(0, 680) || DEFAULT_RESUME_PREVIEW);
-    setParsedSummary(buildParsedSummary(text));
+    if (storedDraft && storedDraft.trim().length > 0) {
+      setResumeDraft(storedDraft);
+      setParsedSummary(buildParsedSummary(storedDraft));
+      setResumeEditorSeed((current) => current + 1);
+    }
+  }, []);
 
-    await uploadResumeToBackend({
-      file_name: file.name,
-      file_type: file.type,
-      storage_path: `resume-ingest/${file.name}`,
-      resume_text: text,
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+    const value = normalizeJobStudioPreferences({
+      mode,
+      jobType,
+      seniority,
+      selectedSources,
+      matchScore,
+      dailyCap,
+      remoteOnly,
+      location,
+      blacklistedCompanies,
     });
+    window.localStorage.setItem(JOB_STUDIO_PREFERENCES_STORAGE_KEY, JSON.stringify(value));
+  }, [
+    mode,
+    jobType,
+    seniority,
+    selectedSources,
+    matchScore,
+    dailyCap,
+    remoteOnly,
+    location,
+    blacklistedCompanies,
+  ]);
 
-    setStatusMessage("Resume uploaded and ready for job matching.");
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+    window.localStorage.setItem(JOB_STUDIO_RESUME_DRAFT_STORAGE_KEY, resumeDraft);
+  }, [resumeDraft]);
+
+  async function handleFileSelection(event: ChangeEvent<HTMLInputElement>) {
+    try {
+      const file = event.currentTarget.files?.[0];
+      if (!file) {
+        return;
+      }
+
+      setResumeFileName(file.name);
+      setStatusMessage("Parsing resume...");
+
+      const text = await file.text();
+      setResumeDraft(text || DEFAULT_RESUME_DRAFT);
+      setParsedSummary(buildParsedSummary(text));
+      setResumeEditorSeed((current) => current + 1);
+
+      await uploadResumeToBackend({
+        file_name: file.name,
+        file_type: file.type,
+        storage_path: `resume-ingest/${file.name}`,
+        resume_text: text,
+      });
+      setStatusMessage("Resume uploaded and parsed.");
+    } catch (error) {
+      console.warn("Resume upload backend unavailable. Falling back to local mode.", error);
+      setStatusMessage("Local mode active. Backend unavailable.");
+    }
   }
 
   async function handleTailorJob(jobId: string) {
     setSelectedJobId(jobId);
-    setStatusMessage("Applying tailoring instructions...");
-    await requestResumeTailoring(jobId);
-    setStatusMessage("Tailored preview updated.");
+    setStatusMessage("Tailoring preview...");
+    try {
+      await requestResumeTailoring(jobId);
+      setStatusMessage("Tailored preview updated.");
+    } catch (error) {
+      console.warn("Tailor endpoint unavailable. Showing local preview.", error);
+      setStatusMessage("Tailored preview updated locally.");
+    }
   }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-
     if (!selectedJob) {
-      setStatusMessage("Upload a resume and select a job before applying.");
+      setStatusMessage("Select a job first.");
       return;
     }
 
@@ -109,21 +211,24 @@ export function ResumeWorkflowStudio({
           resume_artifact_id: `tailored-${selectedJob.id}`,
           apply_mode: "manual_review",
         });
-        setStatusMessage(`Queued a tailored application for ${selectedJob.title}.`);
+        setStatusMessage(`Single-job submission queued for ${selectedJob.title}.`);
       } else {
         await createApplicationInBackend({
           job_id: selectedJob.id,
           resume_artifact_id: `auto-${selectedJob.id}`,
           apply_mode: "auto_apply",
         });
-        setStatusMessage(`Auto-apply mode queued ${selectedJob.title}.`);
+        setStatusMessage(`Auto-apply queue started with ${selectedJob.title}.`);
       }
+    } catch (error) {
+      console.warn("Apply submission failed due to backend connectivity.", error);
+      setStatusMessage("Submission failed. Check backend connectivity.");
     } finally {
       setIsSubmitting(false);
     }
   }
 
-  function toggleSource(source: string) {
+  function toggleSource(source: JobSourceOption) {
     setSelectedSources((current) =>
       current.includes(source)
         ? current.filter((item) => item !== source)
@@ -131,165 +236,167 @@ export function ResumeWorkflowStudio({
     );
   }
 
+  function applyAssistantPrompt() {
+    const message = assistantInput.trim();
+    if (!message) {
+      return;
+    }
+    const updated = applyPromptToPreferences(message, {
+      mode,
+      jobType,
+      seniority,
+      selectedSources,
+      matchScore,
+      dailyCap,
+      remoteOnly,
+      location,
+      blacklistedCompanies,
+    });
+    setMode(updated.mode);
+    setJobType(updated.jobType);
+    setSeniority(updated.seniority);
+    setSelectedSources(updated.selectedSources);
+    setMatchScore(updated.matchScore);
+    setDailyCap(updated.dailyCap);
+    setRemoteOnly(updated.remoteOnly);
+    setLocation(updated.location);
+    setBlacklistedCompanies(updated.blacklistedCompanies);
+    setAssistantInput("");
+    setStatusMessage("Preferences updated.");
+  }
+
   return (
     <div className="page-shell">
-      <main className="container" style={{ padding: "1.6rem 0 3rem" }}>
-        <section className="soft-card workflow-hero">
-          <div className="workflow-hero-grid">
-            <div>
-              <div className="eyebrow">
-                <span className="eyebrow-dot" />
-                Resume studio
-              </div>
-              <h1 className="section-title" style={{ marginTop: "0.9rem" }}>
-                Upload once. Shape the job strategy. See the resume change live.
-              </h1>
-              <p className="section-subtitle" style={{ marginTop: "0.9rem" }}>
-                This is the control center for ApplyBoom. Users can switch between autopilot and
-                single-job mode, tune preferences, and preview how the tailored resume changes
-                before the browser runner is triggered.
-              </p>
-
-              <div className="hero-actions">
-                <label className="primary-button" htmlFor="resume-upload-input" style={{ display: "inline-flex" }}>
-                  Upload resume
-                </label>
-                <button type="button" className="secondary-button" onClick={() => setMode("auto")}>
-                  Auto-apply mode
-                </button>
-                <button type="button" className="ghost-button" onClick={() => setMode("single")}>
-                  Single-job mode
-                </button>
-              </div>
-
-              <div className="hero-microcopy">
-                <span className="chip" data-tone="accent">
-                  {resumeFileName}
-                </span>
-                <span className="chip" data-tone="success">
-                  {statusMessage}
-                </span>
-              </div>
-            </div>
-
-            <div className="soft-card workflow-status-card">
-              <div className="eyebrow">
-                <span className="eyebrow-dot" />
-                Session summary
-              </div>
-              <div className="workflow-status-stack">
-                <div className="workflow-status-row">
-                  <strong>{mode === "auto" ? "Auto-apply" : "Single-job"}</strong>
-                  <span>Current mode</span>
-                </div>
-                <div className="workflow-status-row">
-                  <strong>{matchScore}%</strong>
-                  <span>Minimum match score</span>
-                </div>
-                <div className="workflow-status-row">
-                  <strong>{dailyCap}</strong>
-                  <span>Applications per day</span>
-                </div>
-                <div className="workflow-status-row">
-                  <strong>{selectedSources.length}</strong>
-                  <span>Job sources enabled</span>
-                </div>
-              </div>
+      <div className="top-nav">
+        <div className="container top-nav-inner">
+          <div className="brand-lockup">
+            <Image
+              src="/applybloom-logo.svg"
+              alt="ApplyBloom logo"
+              width={40}
+              height={40}
+              className="brand-logo"
+              priority
+            />
+            <div className="brand-copy">
+              <strong>ApplyBloom</strong>
+              <span>Job Studio</span>
             </div>
           </div>
-        </section>
-
-        <form onSubmit={handleSubmit} className="workflow-grid">
-          <section className="soft-card workflow-panel">
-            <div className="eyebrow">
-              <span className="eyebrow-dot" />
-              1. Intake
+          <div className="dashboard-nav-actions" aria-label="Studio navigation">
+            <Link href="/" prefetch={false} className="ui-button ui-button-ghost">
+              Home
+            </Link>
+            <Link href="/applications" prefetch={false} className="ui-button ui-button-secondary">
+              Applications
+            </Link>
+          </div>
+        </div>
+      </div>
+      <main className="container studio-v2">
+        <Card className="studio-v2-header">
+          <CardHeader>
+            <Badge variant="accent">Job Studio</Badge>
+            <CardTitle>Simple 3-step workflow</CardTitle>
+            <CardDescription>Set preferences, edit resume, then apply.</CardDescription>
+          </CardHeader>
+          <CardContent className="studio-v2-header-content">
+            <div className="studio-v2-badges">
+              <Badge variant="accent">{resumeFileName}</Badge>
+              <Badge variant="success">{statusMessage}</Badge>
+              <Badge>{mode === "auto" ? "Auto-apply" : "Single-job"}</Badge>
             </div>
-            <div className="workflow-upload-box">
-              <input
-                id="resume-upload-input"
-                name="resume"
-                type="file"
-                accept=".pdf,.docx,.txt"
-                onChange={handleFileSelection}
-              />
-              <div className="workflow-upload-copy">
-                <h3>Drop the resume here</h3>
-                <p>PDF, DOCX, or TXT. The preview updates as soon as the file is loaded.</p>
-              </div>
-            </div>
+          </CardContent>
+        </Card>
 
-            <div className="workflow-panel-section">
-              <div className="workflow-label-row">
-                <strong>Mode</strong>
-                <span>{mode === "auto" ? "Autopilot" : "Single-job targeting"}</span>
+        <form onSubmit={handleSubmit} className="studio-v2-simple-flow">
+          <Card>
+            <CardHeader>
+              <CardTitle>Step 1: Setup</CardTitle>
+              <CardDescription>Upload resume and configure targeting.</CardDescription>
+            </CardHeader>
+            <CardContent className="studio-v2-section-stack">
+              <div className="workflow-upload-box">
+                <input
+                  id="resume-upload-input"
+                  name="resume"
+                  type="file"
+                  accept=".pdf,.docx,.txt"
+                  onChange={handleFileSelection}
+                />
+                <div className="workflow-upload-copy">
+                  <h3>Upload resume file</h3>
+                  <p>PDF, DOCX, or TXT.</p>
+                </div>
               </div>
-              <div className="mode-switcher" style={{ marginTop: 0 }}>
-                <button
-                  type="button"
-                  className="mode-pill"
-                  data-active={mode === "auto"}
+
+              <div className="studio-mode-actions">
+                <Button
+                  variant={mode === "auto" ? "primary" : "secondary"}
                   onClick={() => setMode("auto")}
                 >
                   Auto-apply mode
-                </button>
-                <button
-                  type="button"
-                  className="mode-pill"
-                  data-active={mode === "single"}
+                </Button>
+                <Button
+                  variant={mode === "single" ? "primary" : "ghost"}
                   onClick={() => setMode("single")}
                 >
                   Single-job mode
-                </button>
+                </Button>
               </div>
-            </div>
 
-            <div className="workflow-panel-section">
-              <div className="workflow-label-row">
-                <strong>Job type</strong>
-                <span>What kinds of roles should be surfaced</span>
+              <div className="studio-chat-composer">
+                <Input
+                  value={assistantInput}
+                  onChange={(event) => setAssistantInput(event.target.value)}
+                  placeholder="Optional: remote senior backend, 85% minimum, 20/day, skip Meta"
+                />
+                <Button type="button" variant="secondary" onClick={applyAssistantPrompt}>
+                  Apply Prompt
+                </Button>
               </div>
-              <div className="workflow-select-grid">
-                {jobTypes.map((option) => (
-                  <button
-                    key={option}
-                    type="button"
-                    className="workflow-choice"
-                    data-active={jobType === option}
-                    onClick={() => setJobType(option)}
-                  >
-                    {option}
-                  </button>
-                ))}
-              </div>
-            </div>
 
-            <div className="workflow-panel-section">
-              <div className="workflow-label-row">
-                <strong>Seniority</strong>
-                <span>Align the search to the user&apos;s experience level</span>
+              <div>
+                <div className="workflow-label-row">
+                  <strong>Job type</strong>
+                  <span>{jobType}</span>
+                </div>
+                <div className="workflow-select-grid">
+                  {JOB_TYPE_OPTIONS.map((option) => (
+                    <button
+                      key={option}
+                      type="button"
+                      className="workflow-choice"
+                      data-active={jobType === option}
+                      onClick={() => setJobType(option)}
+                    >
+                      {option}
+                    </button>
+                  ))}
+                </div>
               </div>
-              <div className="workflow-select-grid">
-                {seniorities.map((option) => (
-                  <button
-                    key={option}
-                    type="button"
-                    className="workflow-choice"
-                    data-active={seniority === option}
-                    onClick={() => setSeniority(option)}
-                  >
-                    {option}
-                  </button>
-                ))}
-              </div>
-            </div>
 
-            <div className="workflow-panel-section">
-              <div className="workflow-label-row">
-                <strong>Search filters</strong>
-                <span>Match score, location, and daily cap</span>
+              <div>
+                <div className="workflow-label-row">
+                  <strong>Seniority</strong>
+                  <span>{seniority}</span>
+                </div>
+                <div className="workflow-select-grid">
+                  {SENIORITY_OPTIONS.map((option) => (
+                    <button
+                      key={option}
+                      type="button"
+                      className="workflow-choice"
+                      data-active={seniority === option}
+                      onClick={() => setSeniority(option)}
+                    >
+                      {option}
+                    </button>
+                  ))}
+                </div>
               </div>
-              <label className="slider-field">
+
+              <Label className="slider-field">
                 <span>Minimum match score: {matchScore}%</span>
                 <input
                   type="range"
@@ -298,8 +405,9 @@ export function ResumeWorkflowStudio({
                   value={matchScore}
                   onChange={(event) => setMatchScore(Number(event.target.value))}
                 />
-              </label>
-              <label className="slider-field">
+              </Label>
+
+              <Label className="slider-field">
                 <span>Applications per day: {dailyCap}</span>
                 <input
                   type="range"
@@ -308,169 +416,204 @@ export function ResumeWorkflowStudio({
                   value={dailyCap}
                   onChange={(event) => setDailyCap(Number(event.target.value))}
                 />
-              </label>
-              <label className="toggle-field">
+              </Label>
+
+              <Label className="toggle-field">
                 <input
                   type="checkbox"
                   checked={remoteOnly}
                   onChange={(event) => setRemoteOnly(event.target.checked)}
                 />
                 <span>Remote only</span>
-              </label>
-              <label className="field-stack">
+              </Label>
+
+              <Label className="field-stack">
                 <span>Location</span>
-                <input
-                  type="text"
+                <Input
                   value={location}
                   onChange={(event) => setLocation(event.target.value)}
-                  placeholder="Remote · United States"
+                  placeholder="Remote - United States"
                 />
-              </label>
-              <label className="field-stack">
+              </Label>
+
+              <Label className="field-stack">
                 <span>Blacklisted companies</span>
-                <textarea
-                  rows={3}
+                <Textarea
+                  rows={2}
                   value={blacklistedCompanies}
                   onChange={(event) => setBlacklistedCompanies(event.target.value)}
                   placeholder="Comma-separated company names"
                 />
-              </label>
-            </div>
+              </Label>
 
-            <div className="workflow-panel-section">
-              <div className="workflow-label-row">
-                <strong>Sources</strong>
-                <span>Choose where jobs should come from</span>
+              <div>
+                <div className="workflow-label-row">
+                  <strong>Sources</strong>
+                  <span>{selectedSources.length} selected</span>
+                </div>
+                <div className="workflow-source-grid">
+                  {JOB_SOURCE_OPTIONS.map((source) => (
+                    <button
+                      key={source}
+                      type="button"
+                      className="workflow-choice"
+                      data-active={selectedSources.includes(source)}
+                      onClick={() => toggleSource(source)}
+                    >
+                      {source}
+                    </button>
+                  ))}
+                </div>
               </div>
-              <div className="workflow-source-grid">
-                {sources.map((source) => (
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Step 2: Resume Editor</CardTitle>
+              <CardDescription>Update resume content before tailoring.</CardDescription>
+            </CardHeader>
+            <CardContent className="studio-v2-section-stack">
+              <ResumeRichTextEditor
+                key={resumeEditorSeed}
+                initialText={resumeDraft}
+                onPlainTextChange={(value) => {
+                  setResumeDraft(value);
+                  setParsedSummary(buildParsedSummary(value));
+                }}
+              />
+              <p className="muted-copy">{parsedSummary}</p>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Step 3: Select Job And Apply</CardTitle>
+              <CardDescription>Pick a job, preview tailoring, then submit.</CardDescription>
+            </CardHeader>
+            <CardContent className="studio-v2-section-stack">
+              <div className="workflow-tabs">
+                {matches.slice(0, 4).map((job) => (
                   <button
-                    key={source}
+                    key={job.id}
                     type="button"
-                    className="workflow-choice"
-                    data-active={selectedSources.includes(source)}
-                    onClick={() => toggleSource(source)}
+                    className="workflow-tab"
+                    data-active={selectedJob?.id === job.id}
+                    onClick={() => handleTailorJob(job.id)}
                   >
-                    {source}
+                    <strong>{job.title}</strong>
+                    <span>
+                      {job.company} | {Math.round((job.score ?? 0) * 100)}%
+                    </span>
                   </button>
                 ))}
               </div>
-            </div>
 
-            <div className="workflow-panel-section">
-              <button className="primary-button workflow-submit" type="submit" disabled={isSubmitting}>
-                {isSubmitting
-                  ? "Launching..."
-                  : mode === "auto"
-                    ? "Start auto-apply"
-                    : "Tailor and apply"}
-              </button>
-            </div>
-          </section>
+              <Card className="selected-job-card">
+                <CardContent>
+                  {selectedJob ? (
+                    <div className="studio-v2-selected-job">
+                      <div>
+                        <strong>{selectedJob.title}</strong>
+                        <p>{selectedJob.company}</p>
+                      </div>
+                      <div className="chip-row">
+                        <Badge variant="accent">
+                          {Math.round((selectedJob.score ?? 0) * 100)}% match
+                        </Badge>
+                        <Badge>{selectedJob.location ?? "No location listed"}</Badge>
+                        <Badge variant="success">{selectedJob.remote ? "Remote" : "Onsite"}</Badge>
+                      </div>
+                    </div>
+                  ) : (
+                    <p className="muted-copy">No job selected yet.</p>
+                  )}
+                </CardContent>
+              </Card>
 
-          <section className="soft-card workflow-panel">
-            <div className="eyebrow">
-              <span className="eyebrow-dot" />
-              2. Live preview
-            </div>
+              <Card className="preview-panel">
+                <CardHeader>
+                  <CardTitle>{tailoredPreview.headline}</CardTitle>
+                  <CardDescription>{tailoredPreview.summary}</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <ul className="change-list">
+                    {tailoredPreview.bullets.map((bullet) => (
+                      <li key={bullet}>{bullet}</li>
+                    ))}
+                  </ul>
+                </CardContent>
+              </Card>
 
-            <div className="workflow-tabs">
-              {snapshot.matches.slice(0, 4).map((job) => (
-                <button
-                  key={job.id}
-                  type="button"
-                  className="workflow-tab"
-                  data-active={selectedJob?.id === job.id}
-                  onClick={() => handleTailorJob(job.id)}
-                >
-                  <strong>{job.title}</strong>
-                  <span>
-                    {job.company} · {Math.round((job.score ?? 0) * 100)}%
-                  </span>
-                </button>
-              ))}
-            </div>
-
-            <div className="workflow-preview-grid">
-              <div className="soft-card preview-panel">
-                <div className="eyebrow">
-                  <span className="eyebrow-dot" />
-                  Original resume
-                </div>
-                <pre className="resume-preview">{resumePreview}</pre>
+              <div className="studio-v2-footer">
+                <Button type="submit" disabled={isSubmitting}>
+                  {isSubmitting
+                    ? "Submitting..."
+                    : mode === "auto"
+                      ? "Start auto-apply"
+                      : "Tailor and apply"}
+                </Button>
               </div>
-
-              <div className="soft-card preview-panel">
-                <div className="eyebrow">
-                  <span className="eyebrow-dot" />
-                  Tailored draft
-                </div>
-                <h3>{tailoredPreview.headline}</h3>
-                <p>{tailoredPreview.summary}</p>
-                <ul className="change-list">
-                  {tailoredPreview.bullets.map((bullet) => (
-                    <li key={bullet}>{bullet}</li>
-                  ))}
-                </ul>
-              </div>
-            </div>
-
-            <div className="workflow-panel-section">
-              <div className="workflow-label-row">
-                <strong>Parsed profile</strong>
-                <span>{parsedSummary}</span>
-              </div>
-            </div>
-
-            <div className="workflow-panel-section">
-              <div className="eyebrow">
-                <span className="eyebrow-dot" />
-                3. Selected job
-              </div>
-              {selectedJob ? (
-                <div className="selected-job-card">
-                  <div>
-                    <strong>{selectedJob.title}</strong>
-                    <p>{selectedJob.company}</p>
-                  </div>
-                  <div className="chip-row">
-                    <span className="chip" data-tone="accent">
-                      {Math.round((selectedJob.score ?? 0) * 100)}% match
-                    </span>
-                    <span className="chip">{selectedJob.location ?? "No location listed"}</span>
-                    <span className="chip">{selectedJob.remote ? "Remote" : "Onsite"}</span>
-                  </div>
-                </div>
-              ) : (
-                <p className="muted-copy">No job selected yet.</p>
-              )}
-            </div>
-
-            <div className="workflow-panel-section">
-              <div className="eyebrow">
-                <span className="eyebrow-dot" />
-                4. How it submits
-              </div>
-              <div className="workflow-mini-columns">
-                <div className="mini-timeline-row">
-                  <div>
-                    <strong>Auto mode</strong>
-                    <small>Rank, tailor, queue, and apply in batches.</small>
-                  </div>
-                </div>
-                <div className="mini-timeline-row">
-                  <div>
-                    <strong>Single-job mode</strong>
-                    <small>Tailor the resume and submit only one application.</small>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </section>
+            </CardContent>
+          </Card>
         </form>
       </main>
     </div>
   );
+}
+
+function applyPromptToPreferences(prompt: string, current: JobStudioPreferences) {
+  const text = prompt.toLowerCase();
+  const next: Partial<JobStudioPreferences> = { ...current };
+
+  if (text.includes("single")) {
+    next.mode = "single";
+  }
+  if (text.includes("auto")) {
+    next.mode = "auto";
+  }
+  if (text.includes("remote only")) {
+    next.remoteOnly = true;
+    next.jobType = "Remote only";
+  }
+  if (text.includes("onsite")) {
+    next.remoteOnly = false;
+  }
+
+  for (const value of SENIORITY_OPTIONS) {
+    if (text.includes(value.toLowerCase().replaceAll(" / ", "/"))) {
+      next.seniority = value;
+    }
+  }
+
+  for (const value of JOB_TYPE_OPTIONS) {
+    if (text.includes(value.toLowerCase())) {
+      next.jobType = value;
+    }
+  }
+
+  const scoreMatch = text.match(/(\d{2})\s*%?\s*(minimum|match|score)/);
+  if (scoreMatch) {
+    next.matchScore = Number(scoreMatch[1]);
+  }
+
+  const capMatch = text.match(/(\d{1,3})\s*(\/day|per day|applications)/);
+  if (capMatch) {
+    next.dailyCap = Number(capMatch[1]);
+  }
+
+  const skipMatch = text.match(/skip\s+([a-z0-9,\s-]+)/i);
+  if (skipMatch) {
+    next.blacklistedCompanies = skipMatch[1].trim();
+  }
+
+  for (const source of JOB_SOURCE_OPTIONS) {
+    if (text.includes(source.toLowerCase())) {
+      next.selectedSources = [...new Set([...(next.selectedSources ?? []), source])];
+    }
+  }
+
+  return normalizeJobStudioPreferences(next);
 }
 
 function buildParsedSummary(text: string) {
@@ -483,20 +626,43 @@ function buildParsedSummary(text: string) {
     content.includes("postgres") ? "Postgres" : null,
     content.includes("aws") ? "AWS" : null,
   ].filter(Boolean);
-
   return signals.length > 0
     ? `Detected ${signals.join(", ")} in the profile`
     : DEFAULT_PARSED_SUMMARY;
 }
 
-const DEFAULT_RESUME_PREVIEW = `John Doe
+const DEFAULT_RESUME_DRAFT = `John Doe
 Backend Engineer
 
-Experience:
-- Built TypeScript services and automation systems
-- Shipped job matching and resume tailoring features
+Summary
+Platform-focused engineer with 5+ years building APIs, queues, and production automation.
 
-Skills:
-TypeScript, React, Node.js, Postgres, Redis, Playwright`;
+Experience
+- Led backend delivery for high-throughput workflow systems.
+- Built resume tailoring and job matching services with measurable conversion lift.
+
+Skills
+TypeScript, Python, Postgres, Redis, Cloudflare Workers, Playwright`;
 
 const DEFAULT_PARSED_SUMMARY = "Upload a resume to see extracted skills and targeting signals.";
+
+const FALLBACK_MATCHES = [
+  {
+    id: "local-backend-engineer",
+    title: "Backend Engineer",
+    company: "Example Labs",
+    location: "Remote - US",
+    remote: true,
+    score: 0.88,
+    reason: "Strong match on backend systems, TypeScript, and API ownership.",
+  },
+  {
+    id: "local-platform-engineer",
+    title: "Platform Engineer",
+    company: "Core Systems",
+    location: "San Francisco, CA",
+    remote: false,
+    score: 0.81,
+    reason: "Good overlap on infra automation, queue processing, and observability.",
+  },
+];

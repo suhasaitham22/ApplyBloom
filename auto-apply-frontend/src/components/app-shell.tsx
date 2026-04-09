@@ -1,5 +1,7 @@
 import { NotificationList } from "@/components/notification-list";
 import type { NotificationSummary } from "@/lib/api-types";
+import Image from "next/image";
+import Link from "next/link";
 
 export function AppShell({
   title,
@@ -15,22 +17,31 @@ export function AppShell({
       <div className="top-nav">
         <div className="container top-nav-inner">
           <div className="brand-lockup">
-            <div className="brand-mark" aria-hidden="true" />
+            <Image
+              src="/applybloom-logo.svg"
+              alt="ApplyBloom logo"
+              width={40}
+              height={40}
+              className="brand-logo"
+              priority
+            />
             <div className="brand-copy">
               <strong>{title}</strong>
               <span>Workflow dashboard</span>
             </div>
           </div>
-          <div className="nav-links" aria-label="Dashboard shortcuts">
-            <a href="/">Overview</a>
-            <a href="/resume-upload">Upload</a>
-            <a href="/job-matches">Matches</a>
-            <a href="/applications">Applications</a>
+          <div className="dashboard-nav-actions" aria-label="Dashboard navigation">
+            <Link href="/" prefetch={false} className="ui-button ui-button-ghost">
+              Home
+            </Link>
+            <Link href="/job-studio" prefetch={false} className="ui-button ui-button-secondary">
+              Job Studio
+            </Link>
           </div>
         </div>
       </div>
 
-      <main className="container" style={{ padding: "1.4rem 0 3rem" }}>
+      <main className="container dashboard-main">
         <div className="dashboard-preview">
           <section className="glow-card hero-panel" aria-label="Primary dashboard content">
             {children}
@@ -39,7 +50,7 @@ export function AppShell({
             <div className="soft-card summary-card">
               <div className="eyebrow">
                 <span className="eyebrow-dot" />
-                ApplyBoom status
+                ApplyBloom status
               </div>
               <h3>Everything is kept modular.</h3>
               <p>

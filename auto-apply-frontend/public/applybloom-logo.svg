@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="ApplyBloom logo">
+  <defs>
+    <linearGradient id="applybloomGradient" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#2f7cff"/>
+      <stop offset="1" stop-color="#18b7a0"/>
+    </linearGradient>
+  </defs>
+  <rect x="4" y="4" width="56" height="56" rx="16" fill="#0d1a28"/>
+  <path d="M18 42L30 18H36L24 42H18Z" fill="url(#applybloomGradient)"/>
+  <path d="M30 42L42 18H48L36 42H30Z" fill="#f4a21b"/>
+</svg>

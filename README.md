@@ -1,85 +1,100 @@
-# ApplyBoom
+<p align="center">
+  <img src="auto-apply-frontend/public/applybloom-logo.svg" alt="ApplyBloom logo" width="72" height="72" />
+</p>
 
-ApplyBoom is an AI-assisted job application platform built as two separate codebases:
+<h1 align="center">ApplyBloom</h1>
 
-- `auto-apply-frontend`: Next.js UI
-- `auto-apply-backend`: Cloudflare Workers API and worker orchestration
+ApplyBloom is an AI-assisted job application platform split into two codebases:
 
-## What it does
+- `auto-apply-frontend` (Next.js web app)
+- `auto-apply-backend` (Cloudflare Worker API and async processors)
 
-- uploads and parses resumes
-- discovers relevant jobs from configured sources
-- ranks matches with AI-assisted scoring
-- tailors resumes per job
-- queues application work
-- tracks application status
-- sends notifications
+## Product workflows
 
-## How users use it while we build
+- Auto-apply mode: upload resume, discover matching jobs, and queue apply actions.
+- Single-job mode: pick one job, tailor resume for that job, then apply.
 
-1. Upload a resume in the frontend.
-2. The backend parses it into structured profile data.
-3. The system fetches and ranks matching jobs.
-4. In auto-apply mode, the system automatically applies to matching jobs.
-5. In single-job mode, the user selects a job, the system tailors the resume, and then applies only to that job.
-6. Status updates and notifications are recorded in the dashboard.
+## Run locally
 
-## Product Modes
+### Prerequisites
 
-ApplyBoom has two main workflows:
+- Node.js 20+
+- npm 10+
 
-- Auto-apply mode: resume upload triggers job discovery, ranking, and queued application execution for suitable jobs.
-- Single-job tailor-apply mode: the user picks one job, the system tailors the resume for that job, and applies only there.
+### 1) Start backend (Cloudflare Worker)
 
-## Current status
+1. Open a terminal in `auto-apply-backend`.
+2. Install dependencies:
+   - `npm install`
+3. Create `auto-apply-backend/.dev.vars`:
 
-The build currently has:
+```bash
+DEV_DEMO_USER_ID=local_demo_user
+DEV_IMMEDIATE_QUEUE_PROCESSING=true
+RESEND_API_KEY=your_resend_api_key
+RESEND_FROM_EMAIL=ApplyBloom <onboarding@resend.dev>
+GREENHOUSE_BOARD_TOKENS=
+LEVER_COMPANY_TOKENS=
+```
 
-- resume parsing
-- job matching against an internal demo catalog
-- tailored resume generation
-- application planning and queue scaffolding
-- Supabase integration
-- Resend integration
-- adapter-based job source ingestion for Greenhouse and Lever
-- a separate Playwright browser automation module for application submission
+4. Start backend:
+   - `npm run dev`
+5. Health check:
+   - `http://127.0.0.1:8787/api/v1/health`
 
-The next production dependencies are:
+### 2) Start frontend (Next.js)
 
-- queue provider wiring
-- browser runner deployment
-- optional AI fallback providers
+1. Open a second terminal in `auto-apply-frontend`.
+2. Install dependencies:
+   - `npm install`
+3. Create/update `auto-apply-frontend/.env.local`:
 
-## Authentication decision
+```bash
+NEXT_PUBLIC_BACKEND_API_BASE_URL=http://127.0.0.1:8787
+NEXT_PUBLIC_DEMO_USER_ID=local_demo_user
+NEXT_PUBLIC_SUPABASE_URL=your_supabase_project_url
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
+```
 
-We do not need Clerk for the MVP if we are already using Supabase Auth.
+4. Start frontend:
+   - `npm run dev`
+5. Open:
+   - `http://localhost:3000`
 
-Clerk is a separate authentication and user-management product for Next.js apps. Clerk’s quickstart is centered on adding `@clerk/nextjs`, `clerkMiddleware()`, and `<ClerkProvider>` to provide auth state and user UI in Next.js. That is useful if we want Clerk to own sign-in, sign-up, and route protection. For ApplyBoom, that would duplicate what Supabase Auth already covers, so Clerk stays optional unless we explicitly switch auth ownership later.  
+## Local test commands
 
-## Architecture rules
+- Frontend tests:
+  - `cd auto-apply-frontend`
+  - `npm run test`
+- Backend tests:
+  - `cd auto-apply-backend`
+  - `npm run test`
 
-- No monorepo
-- Clear frontend/backend separation
-- File names describe the code responsibility
-- Components are isolated so one failure does not break the whole system
-- External GitHub repos are reference material only; the needed behavior is ported into this codebase
+## Local troubleshooting
 
-## Current status
+- `Cannot find module './xxx.js'` or RSC payload mismatch usually means stale Next build artifacts:
+  - `cd auto-apply-frontend`
+  - `npm run clean:next`
+  - `npm run dev`
+- If frontend cannot call backend, verify:
+  - `NEXT_PUBLIC_BACKEND_API_BASE_URL=http://127.0.0.1:8787`
+  - backend terminal is running `npm run dev`
 
-The repository includes:
+## Architecture constraints
 
-- product and architecture documentation
-- backend API contract
-- frontend and backend scaffolding
-- service implementations
-- worker processors
-- tests for the implemented functionality
+- Frontend and backend remain separate codebases.
+- API edge remains stateless.
+- Long-running work is handled by async processors.
+- External GitHub repos are reference implementations; behavior is ported into ApplyBloom code.
 
-## Repositories
+## Documentation
 
-- Frontend: `auto-apply-frontend`
-- Backend: `auto-apply-backend`
+- [System design](system-design.md)
+- [Implementation idea](idea.md)
+- [Resources and source links](resources.md)
+- [Remaining integrations checklist](docs/remaining-integrations-checklist.md)
+- [Contributing guide](CONTRIBUTING.md)
 
-## Next step
+## Contributing
 
-See [remaining integrations checklist](docs/remaining-integrations-checklist.md).
+Community contributions are welcome. Please start with [CONTRIBUTING.md](CONTRIBUTING.md) for setup, branch naming, test requirements, and pull request expectations.
