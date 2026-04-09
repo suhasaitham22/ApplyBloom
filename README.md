@@ -93,6 +93,7 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
 - [Implementation idea](idea.md)
 - [Resources and source links](resources.md)
 - [Remaining integrations checklist](docs/remaining-integrations-checklist.md)
+- [Branch protection setup](docs/branch-protection-setup.md)
 - [Contributing guide](CONTRIBUTING.md)
 
 ## Contributing

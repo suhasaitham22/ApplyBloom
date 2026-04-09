@@ -1,0 +1,13 @@
+# Default owner for all files
+* @suhasaitham22
+
+# Frontend ownership
+/auto-apply-frontend/ @suhasaitham22
+
+# Backend ownership
+/auto-apply-backend/ @suhasaitham22
+
+# Documentation ownership
+/docs/ @suhasaitham22
+/README.md @suhasaitham22
+/CONTRIBUTING.md @suhasaitham22
