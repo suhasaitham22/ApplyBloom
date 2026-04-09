@@ -15,6 +15,16 @@ Backend repository for the AI Auto Job Apply Platform.
 - queue consumers
 - database migrations
 
+## How this backend is used
+
+- accepts resume uploads from the frontend
+- parses resumes into structured profiles
+- discovers and ranks jobs
+- produces tailored resume artifacts
+- queues application work
+- records application and notification state
+- handles webhook events from providers
+
 ## Rules
 
 - Keep the API edge stateless.
@@ -29,4 +39,4 @@ Backend repository for the AI Auto Job Apply Platform.
 - Upstash Redis
 - Resend
 - Playwright worker service
-
+- Clerk only if auth ownership changes away from Supabase

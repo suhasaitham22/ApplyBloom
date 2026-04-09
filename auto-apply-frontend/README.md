@@ -11,6 +11,15 @@ Frontend repository for the AI Auto Job Apply Platform.
 - application timeline
 - notification center
 
+## How this frontend is used
+
+- users sign in
+- users upload a resume
+- users review ranked jobs
+- users request tailored resumes
+- users track application status
+- users read notifications
+
 ## Rules
 
 - Keep this repo UI-only.
@@ -23,4 +32,4 @@ Frontend repository for the AI Auto Job Apply Platform.
 - Tailwind CSS
 - Cloudflare Pages
 - Supabase Auth client
-
+- Clerk only if we later switch auth providers

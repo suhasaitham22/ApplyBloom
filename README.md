@@ -15,6 +15,21 @@ ApplyBoom is an AI-assisted job application platform built as two separate codeb
 - tracks application status
 - sends notifications
 
+## How users use it while we build
+
+1. Upload a resume in the frontend.
+2. The backend parses it into structured profile data.
+3. The system fetches and ranks matching jobs.
+4. A tailored resume is generated for a selected job.
+5. The application is queued or planned for submission.
+6. Status updates and notifications are recorded in the dashboard.
+
+## Authentication decision
+
+We do not need Clerk for the MVP if we are already using Supabase Auth.
+
+Clerk is a separate authentication and user-management product for Next.js apps. Clerk’s quickstart is centered on adding `@clerk/nextjs`, `clerkMiddleware()`, and `<ClerkProvider>` to provide auth state and user UI in Next.js. That is useful if we want Clerk to own sign-in, sign-up, and route protection. For ApplyBoom, that would duplicate what Supabase Auth already covers, so Clerk stays optional unless we explicitly switch auth ownership later.  
+
 ## Architecture rules
 
 - No monorepo
@@ -41,10 +56,10 @@ The repository includes:
 
 ## Next step
 
-Wire the real external providers:
+Wire the remaining provider boundaries only where needed:
 
 - Cloudflare
 - Supabase
-- Clerk
 - Resend
 - Upstash
+- Clerk only if we decide to move auth off Supabase
