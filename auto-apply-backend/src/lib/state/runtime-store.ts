@@ -64,11 +64,29 @@ export interface RuntimeTailoredResumeRecord {
   updated_at: string;
 }
 
+export interface RuntimeDiscoveredJobRecord {
+  id: string;
+  user_id: string;
+  source: string;
+  source_job_id: string;
+  title: string;
+  company: string;
+  location: string;
+  remote: boolean;
+  description: string;
+  apply_url: string;
+  posted_at: string;
+  raw_payload: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
+}
+
 const runtimeApplications = new Map<string, RuntimeApplicationRecord>();
 const runtimeNotifications: RuntimeNotificationRecord[] = [];
 const runtimeEvents: RuntimeApplicationEventRecord[] = [];
 const runtimeProfiles = new Map<string, RuntimeProfileRecord>();
 const runtimeTailoredResumes = new Map<string, RuntimeTailoredResumeRecord>();
+const runtimeDiscoveredJobs = new Map<string, RuntimeDiscoveredJobRecord>();
 
 export function recordRuntimeApplicationEvent(input: {
   user_id: string;
@@ -215,6 +233,34 @@ export function saveRuntimeTailoredResume(input: {
   return record;
 }
 
+export function saveRuntimeDiscoveredJobs(
+  userId: string,
+  jobs: Array<Omit<RuntimeDiscoveredJobRecord, "user_id" | "created_at" | "updated_at">>,
+) {
+  const now = new Date().toISOString();
+  const records = jobs.map((job) => {
+    const record: RuntimeDiscoveredJobRecord = {
+      ...job,
+      user_id: userId,
+      created_at: now,
+      updated_at: now,
+    };
+
+    runtimeDiscoveredJobs.set(`${userId}:${job.id}`, record);
+    return record;
+  });
+
+  return records;
+}
+
+export function listRuntimeDiscoveredJobs(userId: string) {
+  return Array.from(runtimeDiscoveredJobs.values()).filter((job) => job.user_id === userId);
+}
+
+export function getRuntimeDiscoveredJob(userId: string, jobId: string) {
+  return runtimeDiscoveredJobs.get(`${userId}:${jobId}`) ?? null;
+}
+
 export function getRuntimeTailoredResume(userId: string, jobId: string) {
   return runtimeTailoredResumes.get(`${userId}:${jobId}`) ?? null;
 }
@@ -225,4 +271,5 @@ export function resetRuntimeStore() {
   runtimeEvents.length = 0;
   runtimeProfiles.clear();
   runtimeTailoredResumes.clear();
+  runtimeDiscoveredJobs.clear();
 }

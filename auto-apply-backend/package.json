@@ -6,12 +6,13 @@
     "dev": "wrangler dev",
     "deploy": "wrangler deploy",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run --configLoader runner",
-    "test:watch": "vitest --configLoader runner"
+    "test": "vitest run --configLoader native",
+    "test:watch": "vitest --configLoader native"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.57.0",
     "@upstash/redis": "^1.35.4",
+    "playwright": "^1.59.1",
     "resend": "^4.0.0",
     "svix": "^1.90.0"
   },

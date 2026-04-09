@@ -11,4 +11,6 @@ interface Env {
   RESEND_FROM_EMAIL?: string;
   GREENHOUSE_BOARD_TOKENS?: string;
   LEVER_COMPANY_TOKENS?: string;
+  PLAYWRIGHT_APPLY_ENABLED?: string;
+  PLAYWRIGHT_HEADLESS?: string;
 }

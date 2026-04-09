@@ -1,9 +1,12 @@
 import { describe, expect, it } from "vitest";
 import {
+  getRuntimeDiscoveredJob,
   listRuntimeApplications,
+  listRuntimeDiscoveredJobs,
   getRuntimeProfile,
   listRuntimeNotifications,
   resetRuntimeStore,
+  saveRuntimeDiscoveredJobs,
   saveRuntimeProfile,
   recordRuntimeApplicationEvent,
   recordRuntimeNotification,
@@ -59,5 +62,27 @@ describe("runtime-store", () => {
     });
 
     expect(getRuntimeProfile("user_123")?.headline).toBe("Backend Engineer");
+  });
+
+  it("saves and retrieves discovered jobs", () => {
+    resetRuntimeStore();
+    saveRuntimeDiscoveredJobs("user_123", [
+      {
+        id: "job_123",
+        source: "greenhouse",
+        source_job_id: "123",
+        title: "Backend Engineer",
+        company: "Example",
+        location: "Remote",
+        remote: true,
+        description: "Build backend systems.",
+        apply_url: "https://example.com/apply",
+        posted_at: "2026-01-01T00:00:00Z",
+        raw_payload: {},
+      },
+    ]);
+
+    expect(listRuntimeDiscoveredJobs("user_123")).toHaveLength(1);
+    expect(getRuntimeDiscoveredJob("user_123", "job_123")?.company).toBe("Example");
   });
 });

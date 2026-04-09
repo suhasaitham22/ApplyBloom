@@ -41,12 +41,13 @@ The build currently has:
 - application planning and queue scaffolding
 - Supabase integration
 - Resend integration
+- adapter-based job source ingestion for Greenhouse and Lever
+- a separate Playwright browser automation module for application submission
 
 The next production dependencies are:
 
-- real job source ingestion
-- Playwright application automation
 - queue provider wiring
+- browser runner deployment
 - optional AI fallback providers
 
 ## Authentication decision

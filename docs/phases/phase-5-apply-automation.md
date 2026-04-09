@@ -53,6 +53,12 @@ Browser automation must run in a dedicated worker service, not inside Cloudflare
 
 The edge layer should only enqueue tasks and return status.
 
+In practice, this means:
+
+- the Cloudflare Worker remains the API/orchestration layer
+- the Playwright runner is a separate Node deployable
+- the backend stores job and resume context so the runner can resolve the application task safely
+
 ## Idempotency
 
 Every application task must be protected against double submission.

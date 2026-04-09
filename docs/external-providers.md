@@ -128,6 +128,7 @@ This document tracks what we need from each external provider before a full prod
 - browser automation runtime
 - browser context isolation
 - locator-based interactions
+- dedicated Node runtime outside Cloudflare Workers
 
 ### What We Need to Build
 
@@ -135,6 +136,12 @@ This document tracks what we need from each external provider before a full prod
 - site-specific form adapters
 - failure screenshots only for debugging
 - retry and idempotency logic
+
+### Notes
+
+- The browser automation module should stay separate from the Cloudflare Worker API.
+- The worker should resolve job data and queue tasks, while the browser runner performs submission.
+- Keep Playwright behind a dedicated deployable boundary so automation failures do not take down the API.
 
 ## 8. OpenAI / Anthropic
 

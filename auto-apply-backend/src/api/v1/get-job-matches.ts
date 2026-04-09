@@ -9,7 +9,7 @@ import { requireAuthenticatedUser } from "@/lib/auth/require-authenticated-user"
 import { requireMethod } from "@/lib/http/require-method";
 import { requireNonEmptyString } from "@/lib/http/require-non-empty-string";
 import type { MatchJobsRequestBody } from "@/lib/contracts/api-types";
-import { getRuntimeProfile } from "@/lib/state/runtime-store";
+import { getRuntimeProfile, saveRuntimeDiscoveredJobs } from "@/lib/state/runtime-store";
 
 export async function handleGetJobMatchesRequest(
   request: Request,
@@ -58,6 +58,7 @@ export async function handleGetJobMatchesRequest(
     greenhouseBoardTokens: parseCsvEnv(env.GREENHOUSE_BOARD_TOKENS),
     leverCompanyTokens: parseCsvEnv(env.LEVER_COMPANY_TOKENS),
   });
+  saveRuntimeDiscoveredJobs(auth.user.id, jobs);
   const matches = await rankJobMatches(profile, jobs.slice(0, parsed.data.limit ?? 20));
   const matchesWithJobDetails = matches
     .map((match) => {

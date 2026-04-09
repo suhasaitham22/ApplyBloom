@@ -41,6 +41,8 @@ This project should keep provider configuration explicit and versioned in docs.
 - `DEV_DEMO_USER_ID`
 - `DEV_IMMEDIATE_QUEUE_PROCESSING`
 - `RESEND_FROM_EMAIL`
+- `PLAYWRIGHT_APPLY_ENABLED`
+- `PLAYWRIGHT_HEADLESS`
 - `SUPABASE_DB_PASSWORD` for local CLI linking only
 
 ## Provider Mapping

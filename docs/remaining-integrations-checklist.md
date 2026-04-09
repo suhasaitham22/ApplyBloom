@@ -25,10 +25,11 @@ Why:
 
 - This is what turns matched jobs into actual applications.
 - It is the main automation feature of the product.
+- The code path must stay separate from the Cloudflare Worker API.
 
 What to integrate:
 
-- Playwright-based worker
+- Playwright-based browser runner
 - site-specific apply adapters
 - browser state isolation
 - retry and idempotency protections
@@ -88,4 +89,3 @@ What to integrate:
 - queue failure visibility
 - delivery event history
 - application audit logs
-
