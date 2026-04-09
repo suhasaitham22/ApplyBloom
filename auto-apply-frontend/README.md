@@ -1,36 +1,35 @@
 # auto-apply-frontend
 
-Frontend repository for the AI Auto Job Apply Platform.
+Next.js frontend for ApplyBloom.
 
-## Responsibilities
+## Run locally
 
-- authentication UI
-- resume upload UI
-- job match dashboard
-- tailored resume preview
-- application timeline
-- notification center
+1. Install dependencies:
+   - `npm install`
+2. Create `.env.local`:
 
-## How this frontend is used
+```bash
+NEXT_PUBLIC_BACKEND_API_BASE_URL=http://127.0.0.1:8787
+NEXT_PUBLIC_DEMO_USER_ID=local_demo_user
+NEXT_PUBLIC_SUPABASE_URL=your_supabase_project_url
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
+```
 
-- users sign in
-- users upload a resume
-- users review ranked jobs
-- users run auto-apply mode
-- users request tailored resumes for a single job
-- users track application status
-- users read notifications
+3. Start dev server:
+   - `npm run dev`
+4. Open:
+   - `http://localhost:3000`
 
-## Rules
+## Commands
 
-- Keep this repo UI-only.
-- Do not place queue workers or automation logic here.
-- Call the backend through documented `/api/v1` endpoints only.
+- `npm run dev` -> start development server
+- `npm run clean:next` -> clear stale Next cache/artifacts
+- `npm run build` -> production build
+- `npm run start` -> fresh production start
+- `npm run test` -> run Vitest suite
 
-## Recommended Stack
+## Scope
 
-- Next.js
-- Tailwind CSS
-- Cloudflare Pages
-- Supabase Auth client
-- Clerk only if we later switch auth providers
+- UI only.
+- Backend calls must use `/api/v1` endpoints.
+- No queue or browser automation logic in this repo.

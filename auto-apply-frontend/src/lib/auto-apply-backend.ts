@@ -1,10 +1,12 @@
 import type { ApiSuccess, ApplicationSummary, JobMatchSummary, NotificationSummary } from "@/lib/api-types";
 
-const backendBaseUrl = process.env.NEXT_PUBLIC_BACKEND_API_BASE_URL ?? "";
+const backendBaseUrl = process.env.NEXT_PUBLIC_BACKEND_API_BASE_URL?.trim() ?? "";
 const demoUserId = process.env.NEXT_PUBLIC_DEMO_USER_ID ?? "";
+const API_PREFIX = "/api/v1";
 
 async function backendFetch<T>(path: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(`${backendBaseUrl}${path}`, {
+  const url = buildBackendUrl(path);
+  const response = await fetch(url, {
     ...init,
     headers: {
       "Content-Type": "application/json",
@@ -14,10 +16,47 @@ async function backendFetch<T>(path: string, init?: RequestInit): Promise<T> {
   });
 
   if (!response.ok) {
-    throw new Error(`Backend request failed: ${response.status}`);
+    throw new Error(`Backend request failed: ${response.status} (${url})`);
   }
 
   return (await response.json()) as T;
+}
+
+function buildBackendUrl(path: string) {
+  const base = resolveBackendBaseUrl();
+  if (!base) {
+    throw new Error(
+      "Backend base URL is not configured. Set NEXT_PUBLIC_BACKEND_API_BASE_URL.",
+    );
+  }
+
+  const normalizedPath = path.startsWith("/") ? path : `/${path}`;
+  const baseHasApiPrefix = /\/api\/v1\/?$/i.test(base);
+  const pathWithoutPrefix = normalizedPath.startsWith(`${API_PREFIX}/`)
+    ? normalizedPath.slice(API_PREFIX.length)
+    : normalizedPath;
+  const resolvedPath = baseHasApiPrefix ? pathWithoutPrefix : normalizedPath;
+
+  return `${base}${resolvedPath}`;
+}
+
+function resolveBackendBaseUrl() {
+  if (backendBaseUrl.length > 0) {
+    return trimTrailingSlash(backendBaseUrl);
+  }
+
+  if (typeof window !== "undefined") {
+    const hostname = window.location.hostname;
+    if (hostname === "localhost" || hostname === "127.0.0.1") {
+      return "http://127.0.0.1:8787";
+    }
+  }
+
+  return "";
+}
+
+function trimTrailingSlash(value: string) {
+  return value.endsWith("/") ? value.slice(0, -1) : value;
 }
 
 export async function uploadResumeToBackend(payload: {

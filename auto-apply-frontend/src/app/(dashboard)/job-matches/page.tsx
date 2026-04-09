@@ -9,7 +9,7 @@ export default async function JobMatchesPage() {
   const snapshot = await loadDashboardSnapshot();
 
   return (
-    <AppShell title="ApplyBoom" notifications={snapshot.notifications}>
+    <AppShell title="ApplyBloom" notifications={snapshot.notifications}>
       <div className="section-stack">
         <div>
           <div className="eyebrow">

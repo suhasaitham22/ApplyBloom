@@ -3,16 +3,26 @@
   "private": true,
   "version": "0.1.0",
   "scripts": {
+    "clean:next": "node -e \"require('node:fs').rmSync('.next',{recursive:true,force:true});require('node:fs').rmSync('.turbo',{recursive:true,force:true})\"",
     "dev": "next dev",
+    "dev:fresh": "npm run clean:next && next dev",
+    "start:fresh": "npm run clean:next && next build && next start",
+    "repair": "npm run clean:next && npm run build",
     "build": "next build",
-    "start": "next start",
+    "start": "npm run start:fresh",
+    "start:prod": "next start",
     "lint": "next lint",
     "test": "vitest run --configLoader native",
     "test:watch": "vitest --configLoader native"
   },
   "dependencies": {
+    "@platejs/basic-nodes": "^52.3.10",
+    "@platejs/link": "^52.3.17",
+    "@platejs/math": "^52.3.10",
     "@supabase/supabase-js": "^2.57.0",
+    "katex": "^0.16.45",
     "next": "^15.0.0",
+    "platejs": "^52.3.21",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"
   },
