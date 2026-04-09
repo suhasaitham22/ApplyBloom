@@ -26,7 +26,7 @@ export async function enqueueApplyJob(payload: {
       resume_artifact_id: message.resume_artifact_id,
       apply_mode: message.apply_mode,
       request_id: message.request_id,
-    });
+    }, env);
   }
 
   return {

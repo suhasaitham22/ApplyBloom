@@ -6,4 +6,7 @@ interface Env {
   API_VERSION: string;
   DEV_DEMO_USER_ID?: string;
   DEV_IMMEDIATE_QUEUE_PROCESSING?: string;
+  RESEND_API_KEY?: string;
+  RESEND_WEBHOOK_SECRET?: string;
+  RESEND_FROM_EMAIL?: string;
 }

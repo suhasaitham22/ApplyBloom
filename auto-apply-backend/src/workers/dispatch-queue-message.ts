@@ -49,7 +49,10 @@ export type QueueMessage =
       request_id: string;
     };
 
-export async function dispatchQueueMessage(message: QueueMessage) {
+export async function dispatchQueueMessage(
+  message: QueueMessage,
+  env?: Pick<Env, "RESEND_API_KEY" | "RESEND_FROM_EMAIL">,
+) {
   switch (message.type) {
     case "parse_resume":
       return processParseResumeJob(message);
@@ -60,8 +63,8 @@ export async function dispatchQueueMessage(message: QueueMessage) {
     case "tailor_resume":
       return processTailorResumeJob(message);
     case "apply_job":
-      return processApplyJob(message);
+      return processApplyJob(message, env);
     case "notify_user":
-      return processNotifyUserJob(message);
+      return processNotifyUserJob(message, env);
   }
 }

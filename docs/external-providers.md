@@ -57,6 +57,7 @@ This document tracks what we need from each external provider before a full prod
 - API key
 - verified sending domain
 - webhook signing secret
+- optional from email identity for local testing
 
 ### What We Need to Build
 
@@ -64,6 +65,7 @@ This document tracks what we need from each external provider before a full prod
 - notification digests
 - delivery event handling
 - bounce/compliance event handling
+- safe local secret storage in ignored env files
 
 ### Notes
 

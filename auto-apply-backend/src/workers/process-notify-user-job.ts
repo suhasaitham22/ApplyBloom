@@ -5,8 +5,8 @@ export async function processNotifyUserJob(message: {
   title: string;
   body: string;
   request_id: string;
-}) {
-  await sendNotification(message);
+}, env?: Pick<Env, "RESEND_API_KEY" | "RESEND_FROM_EMAIL">) {
+  await sendNotification(message, env);
   return {
     delivered: true,
   };

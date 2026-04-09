@@ -6,8 +6,6 @@ values
   ('application-evidence', 'application-evidence', false)
 on conflict (id) do nothing;
 
-alter table storage.objects enable row level security;
-
 create policy "resume_artifacts_select_own_objects"
 on storage.objects
 for select

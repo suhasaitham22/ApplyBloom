@@ -15,7 +15,30 @@ export async function handleResendWebhookRequest(
     return methodError;
   }
 
-  await verifyResendWebhookSignature(request, env);
+  try {
+    const verifiedEvent = (await verifyResendWebhookSignature(request, env)) as {
+      type?: string;
+    };
 
-  return jsonResponse(buildSuccessPayload({ status: "accepted" }, requestId));
+    return jsonResponse(
+      buildSuccessPayload(
+        {
+          status: "accepted",
+          event_type: typeof verifiedEvent?.type === "string" ? verifiedEvent.type : "unknown",
+        },
+        requestId,
+      ),
+    );
+  } catch (error) {
+    return jsonResponse(
+      buildSuccessPayload(
+        {
+          status: "rejected",
+          error_message: error instanceof Error ? error.message : "Invalid webhook signature",
+        },
+        requestId,
+      ),
+      400,
+    );
+  }
 }

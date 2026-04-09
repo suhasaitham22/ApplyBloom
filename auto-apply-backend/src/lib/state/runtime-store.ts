@@ -18,6 +18,8 @@ export interface RuntimeNotificationRecord {
   type: string;
   title: string;
   body: string;
+  delivery_provider?: string;
+  provider_event_id?: string;
   read_at: string | null;
   created_at: string;
   updated_at: string;
@@ -35,6 +37,7 @@ export interface RuntimeApplicationEventRecord {
 
 export interface RuntimeProfileRecord {
   user_id: string;
+  email?: string;
   full_name: string;
   headline: string;
   skills: string[];
@@ -139,6 +142,8 @@ export function recordRuntimeNotification(input: {
   type: string;
   title: string;
   body: string;
+  delivery_provider?: string;
+  provider_event_id?: string;
 }) {
   const now = new Date().toISOString();
   const notification: RuntimeNotificationRecord = {
@@ -147,6 +152,8 @@ export function recordRuntimeNotification(input: {
     type: input.type,
     title: input.title,
     body: input.body,
+    delivery_provider: input.delivery_provider,
+    provider_event_id: input.provider_event_id,
     read_at: null,
     created_at: now,
     updated_at: now,

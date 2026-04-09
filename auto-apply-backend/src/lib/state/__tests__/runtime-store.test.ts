@@ -49,6 +49,7 @@ describe("runtime-store", () => {
     resetRuntimeStore();
     saveRuntimeProfile({
       user_id: "user_123",
+      email: "user@example.com",
       full_name: "Jane Doe",
       headline: "Backend Engineer",
       skills: ["TypeScript"],

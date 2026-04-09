@@ -58,7 +58,7 @@ This is the ordered build list for the platform.
 
 ## Phase 7: Notifications
 
-- [ ] Integrate Resend
+- [x] Integrate Resend
 - [ ] Add delivery webhook handling
 - [ ] Add notification history storage
 - [ ] Add tests for email payloads and webhook verification

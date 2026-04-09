@@ -8,7 +8,7 @@ export async function processApplyJob(message: {
   resume_artifact_id: string;
   apply_mode: "manual_review" | "auto_apply" | "save_for_later";
   request_id: string;
-}) {
+}, env?: Pick<Env, "RESEND_API_KEY" | "RESEND_FROM_EMAIL">) {
   const result = await submitApplication(message);
 
   await storeApplicationEvent({
@@ -31,7 +31,7 @@ export async function processApplyJob(message: {
       ? `Your application for job ${message.job_id} was submitted.`
       : `Your application for job ${message.job_id} is waiting for review.`,
     request_id: message.request_id,
-  });
+  }, env);
 
   return result;
 }

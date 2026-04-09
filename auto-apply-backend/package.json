@@ -12,7 +12,8 @@
   "dependencies": {
     "@supabase/supabase-js": "^2.57.0",
     "@upstash/redis": "^1.35.4",
-    "resend": "^4.0.0"
+    "resend": "^4.0.0",
+    "svix": "^1.90.0"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20260401.0",

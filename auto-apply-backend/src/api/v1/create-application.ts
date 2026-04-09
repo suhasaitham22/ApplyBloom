@@ -70,7 +70,7 @@ export async function handleCreateApplicationRequest(
       resume_artifact_id: resumeArtifactId.value,
       apply_mode: parsed.data.apply_mode ?? "manual_review",
       request_id: requestId,
-    });
+    }, env);
 
     return jsonResponse(
       buildSuccessPayload(

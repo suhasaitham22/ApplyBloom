@@ -40,6 +40,8 @@ This project should keep provider configuration explicit and versioned in docs.
 - `CLERK_PUBLISHABLE_KEY`
 - `DEV_DEMO_USER_ID`
 - `DEV_IMMEDIATE_QUEUE_PROCESSING`
+- `RESEND_FROM_EMAIL`
+- `SUPABASE_DB_PASSWORD` for local CLI linking only
 
 ## Provider Mapping
 

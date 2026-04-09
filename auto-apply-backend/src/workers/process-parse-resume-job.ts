@@ -11,6 +11,7 @@ export async function processParseResumeJob(message: {
   const parsedProfile = await parseResume(message.resume_text ?? message.artifact_id);
   saveRuntimeProfile({
     user_id: message.user_id,
+    email: parsedProfile.email || undefined,
     full_name: parsedProfile.full_name,
     headline: parsedProfile.headline,
     skills: parsedProfile.skills,

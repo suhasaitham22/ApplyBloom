@@ -13,5 +13,7 @@ coverage/
 .env
 .env.*
 !.env.example
+.npm-cache/
+**/.npm-cache/
 *.log
 .DS_Store
