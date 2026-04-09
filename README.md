@@ -8,7 +8,7 @@ ApplyBoom is an AI-assisted job application platform built as two separate codeb
 ## What it does
 
 - uploads and parses resumes
-- discovers relevant jobs
+- discovers relevant jobs from configured sources
 - ranks matches with AI-assisted scoring
 - tailors resumes per job
 - queues application work
@@ -30,6 +30,24 @@ ApplyBoom has two main workflows:
 
 - Auto-apply mode: resume upload triggers job discovery, ranking, and queued application execution for suitable jobs.
 - Single-job tailor-apply mode: the user picks one job, the system tailors the resume for that job, and applies only there.
+
+## Current status
+
+The build currently has:
+
+- resume parsing
+- job matching against an internal demo catalog
+- tailored resume generation
+- application planning and queue scaffolding
+- Supabase integration
+- Resend integration
+
+The next production dependencies are:
+
+- real job source ingestion
+- Playwright application automation
+- queue provider wiring
+- optional AI fallback providers
 
 ## Authentication decision
 
@@ -63,10 +81,4 @@ The repository includes:
 
 ## Next step
 
-Wire the remaining provider boundaries only where needed:
-
-- Cloudflare
-- Supabase
-- Resend
-- Upstash
-- Clerk only if we decide to move auth off Supabase
+See [remaining integrations checklist](docs/remaining-integrations-checklist.md).

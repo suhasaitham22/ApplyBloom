@@ -15,6 +15,7 @@ This is the execution map for the project. Each phase is designed to reuse exist
 - [Environment Variables](./environment-variables.md)
 - [Repo Porting Tracker](./repo-reuse-tracker.md)
 - [Repo Reuse Findings](./repo-reuse-findings.md)
+- [Remaining Integrations Checklist](./remaining-integrations-checklist.md)
 - [Reuse vs Porting Policy](./reuse-vs-porting-policy.md)
 - [Backend API Contract](./backend-api-contract.md)
 - [Phase 1 - Foundation](./phases/phase-1-foundation.md)
