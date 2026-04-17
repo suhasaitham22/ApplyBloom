@@ -1,122 +1,40 @@
-import { enqueueTailorResumeJob } from "@/services/enqueue-tailor-resume-job";
-import { discoverJobs } from "@/services/discover-jobs";
-import { tailorResume } from "@/services/tailor-resume";
-import { renderResumePdf } from "@/services/render-resume-pdf";
 import { buildSuccessPayload } from "@/lib/http/build-success-payload";
+import { errorResponse } from "@/lib/http/error-response";
 import { getRequestId } from "@/lib/http/request-id";
 import { jsonResponse } from "@/lib/http/json-response";
 import { parseJsonBody } from "@/lib/http/parse-json-body";
 import { requireAuthenticatedUser } from "@/lib/auth/require-authenticated-user";
 import { requireMethod } from "@/lib/http/require-method";
-import { requireNonEmptyString } from "@/lib/http/require-non-empty-string";
-import type { TailorResumeRequestBody } from "@/lib/contracts/api-types";
-import {
-  getRuntimeProfile,
-  saveRuntimeTailoredResume,
-} from "@/lib/state/runtime-store";
+import { tailorResumeForJob } from "@/services/tailor-resume-llm";
+import type { StructuredResume } from "@/services/structure-resume";
 
-export async function handleTailorResumeRequest(
-  request: Request,
-  env: Env,
-): Promise<Response> {
+interface TailorBody {
+  resume: StructuredResume;
+  job: { title: string; company?: string; description: string; url?: string };
+}
+
+export async function handleTailorResumeRequest(request: Request, env: Env): Promise<Response> {
   const requestId = getRequestId(request);
 
   const methodError = requireMethod(request, "POST");
-  if (methodError) {
-    return methodError;
-  }
+  if (methodError) return methodError;
 
   const auth = await requireAuthenticatedUser(request, env);
-  if (!auth.ok) {
-    return auth.response;
+  if (!auth.ok) return auth.response;
+
+  const parsed = await parseJsonBody<TailorBody>(request);
+  if (!parsed.ok) return parsed.response;
+
+  if (!parsed.data.resume || !parsed.data.job) {
+    return errorResponse("validation_error", "resume and job are required", 400, {}, requestId);
+  }
+  if (!parsed.data.job.title || !parsed.data.job.description) {
+    return errorResponse("validation_error", "job.title and job.description are required", 400, {}, requestId);
   }
 
-  const parsed = await parseJsonBody<TailorResumeRequestBody>(request);
-  if (!parsed.ok) {
-    return parsed.response;
-  }
+  const { data, demo } = await tailorResumeForJob(parsed.data, env);
 
-  const jobId = requireNonEmptyString(parsed.data.job_id, "job_id");
-  if (!jobId.ok) {
-    return jsonResponse(
-      {
-        error: {
-          code: "validation_error",
-          message: jobId.error,
-          details: {},
-        },
-        meta: { request_id: requestId },
-      },
-      400,
-    );
-  }
-
-  if (env.DEV_IMMEDIATE_QUEUE_PROCESSING === "true") {
-    const profile = getRuntimeProfile(auth.user.id);
-    if (!profile) {
-      return jsonResponse(
-        {
-          error: {
-            code: "not_found",
-            message: "No runtime profile available for tailoring",
-            details: {},
-          },
-          meta: { request_id: requestId },
-        },
-        404,
-      );
-    }
-
-    const jobs = await discoverJobs(profile.headline || jobId.value);
-    const job = jobs.find((candidate) => candidate.id === jobId.value || candidate.source_job_id === jobId.value) ?? jobs[0];
-
-    if (!job) {
-      return jsonResponse(
-        {
-          error: {
-            code: "not_found",
-            message: "No matching job available for tailoring",
-            details: {},
-          },
-          meta: { request_id: requestId },
-        },
-        404,
-      );
-    }
-
-    const tailoredResume = await tailorResume(profile, job);
-    const renderedPdf = await renderResumePdf(tailoredResume);
-    const storedTailoredResume = saveRuntimeTailoredResume({
-      user_id: auth.user.id,
-      job_id: job.id,
-      headline: tailoredResume.headline,
-      summary: tailoredResume.summary,
-      skills: tailoredResume.skills,
-      sections: tailoredResume.sections,
-      change_summary: tailoredResume.change_summary,
-      rendered_pdf: renderedPdf,
-    });
-
-    return jsonResponse(
-      buildSuccessPayload(
-        {
-          status: "tailored",
-          tailored_resume: storedTailoredResume,
-        },
-        requestId,
-      ),
-    );
-  }
-
-  await enqueueTailorResumeJob(
-    {
-      user_id: auth.user.id,
-      profile_id: auth.user.id,
-      job_id: jobId.value,
-      mode: parsed.data.mode ?? "manual",
-      request_id: requestId,
-    },
+  return jsonResponse(
+    buildSuccessPayload({ tailored: data, demo_mode: demo }, requestId),
   );
-
-  return jsonResponse(buildSuccessPayload({ status: "queued" }, requestId));
 }
