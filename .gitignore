@@ -17,3 +17,6 @@ coverage/
 **/.npm-cache/
 *.log
 .DS_Store
+.dev.vars
+auto-apply-backend/.dev.vars
+auto-apply-frontend/.env.local
