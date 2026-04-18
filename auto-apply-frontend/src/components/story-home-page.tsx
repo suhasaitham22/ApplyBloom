@@ -126,7 +126,7 @@ export function StoryHomePage({
               />
               <h1 className="story-product-name">ApplyBloom</h1>
             </div>
-            <Badge variant="accent">Resume intelligence + controlled automation</Badge>
+            <Badge variant="default">Resume intelligence + controlled automation</Badge>
             <h2 className="story-hero-title">A complete job search pipeline, designed like a product demo.</h2>
             <p>
               ApplyBloom turns one resume into a guided flow: parse profile, rank jobs, tailor for each
@@ -194,7 +194,7 @@ export function StoryHomePage({
               <div className="story-step-index">0{index + 1}</div>
               <Card className="story-step-card">
                 <CardHeader>
-                  <Badge variant="success">{step.label}</Badge>
+                  <Badge variant="secondary">{step.label}</Badge>
                   <CardTitle>{step.title}</CardTitle>
                   <CardDescription>{step.description}</CardDescription>
                 </CardHeader>
@@ -206,7 +206,7 @@ export function StoryHomePage({
         <section className="story-mode-grid story-chapter reveal-up" data-reveal>
           <Card className="story-mode-card">
             <CardHeader>
-              <Badge variant="accent">Mode A</Badge>
+              <Badge variant="default">Mode A</Badge>
               <CardTitle>Auto-apply mode</CardTitle>
               <CardDescription>
                 Set threshold, sources, and daily caps once. The system continues through the queue.
@@ -222,7 +222,7 @@ export function StoryHomePage({
           </Card>
           <Card className="story-mode-card">
             <CardHeader>
-              <Badge variant="warm">Mode B</Badge>
+              <Badge variant="secondary">Mode B</Badge>
               <CardTitle>Single-job mode</CardTitle>
               <CardDescription>
                 Focus one role. Edit resume intent, preview changes, then submit manually.
@@ -241,7 +241,7 @@ export function StoryHomePage({
         <section className="story-cta story-chapter reveal-up" data-reveal>
           <Card>
             <CardHeader>
-              <Badge variant="success">Next Step</Badge>
+              <Badge variant="secondary">Next Step</Badge>
               <CardTitle>Run the workflow in Job Studio</CardTitle>
               <CardDescription>
                 Job Studio now includes setup, assistant prompt input, resume editing, and apply.

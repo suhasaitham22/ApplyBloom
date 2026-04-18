@@ -20,5 +20,8 @@ interface Env {
   RESEND_WEBHOOK_SECRET?: string;
   RESEND_FROM_EMAIL?: string;
 
+  GREENHOUSE_BOARD_TOKENS?: string;
+  LEVER_COMPANY_TOKENS?: string;
+
   AI?: Ai;
 }

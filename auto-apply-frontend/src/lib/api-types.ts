@@ -33,3 +33,30 @@ export interface ApiSuccess<T> {
   data: T;
   meta: { request_id: string };
 }
+
+export interface JobMatchSummary {
+  id: string;
+  title: string;
+  company: string;
+  location?: string;
+  remote?: boolean;
+  score?: number;
+  reason?: string;
+  description?: string;
+  url?: string;
+}
+
+export interface ApplicationSummary {
+  id: string;
+  job_title: string;
+  company: string;
+  status: string;
+  applied_at?: string;
+}
+
+export interface NotificationSummary {
+  id: string;
+  title: string;
+  body: string;
+  created_at?: string;
+}

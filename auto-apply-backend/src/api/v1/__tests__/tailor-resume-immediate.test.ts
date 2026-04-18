@@ -1,44 +1,40 @@
 import { describe, expect, it } from "vitest";
-import { resetRuntimeStore, saveRuntimeProfile } from "@/lib/state/runtime-store";
+import { resetRuntimeStore } from "@/lib/state/runtime-store";
 import { handleTailorResumeRequest } from "../tailor-resume";
 
-describe("handleTailorResumeRequest immediate processing", () => {
-  it("returns a tailored resume artifact in demo mode", async () => {
+describe("handleTailorResumeRequest", () => {
+  it("returns a tailored resume in demo mode", async () => {
     resetRuntimeStore();
-    saveRuntimeProfile({
-      user_id: "user_123",
-      full_name: "Jane Doe",
-      headline: "Backend Engineer",
-      skills: ["TypeScript", "Postgres", "Redis"],
-      years_experience: 5,
-      summary: "Backend engineer summary",
-      updated_at: new Date().toISOString(),
-    });
 
     const request = new Request("https://example.com/api/v1/resume/tailor", {
       method: "POST",
-      headers: {
-        Authorization: "Bearer user_123",
-      },
+      headers: { Authorization: "Bearer user_123" },
       body: JSON.stringify({
-        job_id: "internal-001",
-        mode: "manual",
+        resume: {
+          full_name: "Jane Doe",
+          headline: "Backend Engineer",
+          contact: { email: "j@d.com", phone: "", location: "" },
+          summary: "5 years of TypeScript and Postgres.",
+          skills: ["TypeScript", "Postgres", "Redis"],
+          experience: [{ heading: "Senior Engineer, Acme (2022-Present)", bullets: ["Built systems"] }],
+          education: [{ heading: "BS CS", bullets: [] }],
+          confidence: 0.9,
+        },
+        job: {
+          title: "Senior Backend Engineer",
+          company: "Widgets",
+          description: "We need someone strong in TypeScript and Postgres.",
+        },
       }),
     });
 
-    const response = await handleTailorResumeRequest(request, {
-      API_VERSION: "v1",
-      DEV_IMMEDIATE_QUEUE_PROCESSING: "true",
-    } as Env);
+    const response = await handleTailorResumeRequest(request, { API_VERSION: "v1" } as Env);
 
     expect(response.status).toBe(200);
     const body = (await response.json()) as {
-      data: {
-        status: string;
-        tailored_resume: { rendered_pdf: { file_name: string } };
-      };
+      data: { tailored: { headline: string; skills: string[] }; demo_mode: boolean };
     };
-    expect(body.data.status).toBe("tailored");
-    expect(body.data.tailored_resume.rendered_pdf.file_name).toBe("tailored-resume.pdf");
+    expect(body.data.tailored.headline.length).toBeGreaterThan(0);
+    expect(Array.isArray(body.data.tailored.skills)).toBe(true);
   });
 });

@@ -1,20 +1,48 @@
 "use client";
 
 import { motion } from "framer-motion";
+import { Check, Sparkles } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { useStory } from "@/lib/story-context";
 
 export function DoneStep() {
   const { job, reset } = useStory();
   return (
-    <motion.section key="done" initial={{ opacity: 0, scale: 0.96 }} animate={{ opacity: 1, scale: 1 }} transition={{ duration: 0.5, type: "spring" }} className="mx-auto max-w-xl px-6 pt-24 text-center">
-      <motion.div initial={{ scale: 0, rotate: -90 }} animate={{ scale: 1, rotate: 0 }} transition={{ delay: 0.2, type: "spring", stiffness: 200 }} className="mx-auto mb-6 flex h-20 w-20 items-center justify-center rounded-full bg-emerald-500 shadow-xl shadow-emerald-500/40">
-        <svg viewBox="0 0 24 24" fill="none" className="h-10 w-10 text-white">
-          <path d="M5 13l4 4L19 7" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
-        </svg>
+    <section className="mx-auto flex min-h-[60vh] max-w-xl flex-col items-center justify-center px-6 text-center">
+      <motion.div
+        initial={{ scale: 0, rotate: -30 }}
+        animate={{ scale: 1, rotate: 0 }}
+        transition={{ type: "spring", stiffness: 200, delay: 0.1 }}
+        className="mb-8 flex h-16 w-16 items-center justify-center rounded-full bg-primary"
+      >
+        <Check className="h-8 w-8 text-primary-foreground" strokeWidth={3} />
       </motion.div>
-      <h2 className="mb-2 text-3xl font-semibold tracking-tight text-neutral-900" style={{ fontFamily: "var(--font-syne), sans-serif" }}>Nice work.</h2>
-      <p className="text-neutral-600">Your application for <span className="font-medium text-neutral-900">{job.title}</span>{job.company ? <> at <span className="font-medium text-neutral-900">{job.company}</span></> : null} is logged.</p>
-      <motion.button whileHover={{ scale: 1.04 }} whileTap={{ scale: 0.96 }} onClick={reset} className="mt-8 rounded-full bg-neutral-900 px-6 py-3 text-sm font-medium text-white shadow-lg">Tailor another</motion.button>
-    </motion.section>
+      <motion.h2
+        initial={{ opacity: 0, y: 8 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.3 }}
+        className="font-display text-5xl tracking-tightest"
+      >
+        Nice work.
+      </motion.h2>
+      <motion.p
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ delay: 0.45 }}
+        className="mt-4 text-muted-foreground"
+      >
+        {job.title}{job.company && <> at {job.company}</>} is logged.
+      </motion.p>
+      <motion.div
+        initial={{ opacity: 0, y: 8 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.6 }}
+        className="mt-10"
+      >
+        <Button size="lg" onClick={reset}>
+          <Sparkles className="mr-2 h-4 w-4" /> Tailor another
+        </Button>
+      </motion.div>
+    </section>
   );
 }
