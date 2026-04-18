@@ -43,8 +43,14 @@ export async function requireAuthenticatedUser(request: Request, env: Env) {
     }
   }
 
-  // Demo mode: accept any bearer or fall back to DEV_DEMO_USER_ID
-  if (env.DEMO_MODE === "true") {
+  // Demo-friendly fallback: in any non-production environment (no JWT secret configured),
+  // accept a bearer token as the user id, or fall back to DEV_DEMO_USER_ID.
+  // This covers local dev, previews, and integration tests without requiring a JWT secret.
+  // Production deployments MUST set SUPABASE_JWT_SECRET to enforce real auth.
+  if (!env.SUPABASE_JWT_SECRET) {
+    if (!bearerToken && !env.DEV_DEMO_USER_ID) {
+      return rejection("unauthorized", "Missing bearer token");
+    }
     const userId = bearerToken || env.DEV_DEMO_USER_ID || "demo_user";
     return {
       ok: true as const,
@@ -65,4 +71,11 @@ function rejection(code: string, message: string) {
     ok: false as const,
     response: errorResponse(code, message, 401),
   };
+}
+
+/** Simplified helper for new studio routes. Returns user or null. */
+export async function resolveUser(request: Request, env: Env): Promise<{ id: string; email?: string } | null> {
+  const result = await requireAuthenticatedUser(request, env);
+  if (!result.ok) return null;
+  return { id: result.user.id, email: result.user.email };
 }

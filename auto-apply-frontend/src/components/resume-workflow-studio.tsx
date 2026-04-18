@@ -296,14 +296,14 @@ export function ResumeWorkflowStudio({
       <main className="container studio-v2">
         <Card className="studio-v2-header">
           <CardHeader>
-            <Badge variant="accent">Job Studio</Badge>
+            <Badge variant="default">Job Studio</Badge>
             <CardTitle>Simple 3-step workflow</CardTitle>
             <CardDescription>Set preferences, edit resume, then apply.</CardDescription>
           </CardHeader>
           <CardContent className="studio-v2-header-content">
             <div className="studio-v2-badges">
-              <Badge variant="accent">{resumeFileName}</Badge>
-              <Badge variant="success">{statusMessage}</Badge>
+              <Badge variant="default">{resumeFileName}</Badge>
+              <Badge variant="secondary">{statusMessage}</Badge>
               <Badge>{mode === "auto" ? "Auto-apply" : "Single-job"}</Badge>
             </div>
           </CardContent>
@@ -332,13 +332,13 @@ export function ResumeWorkflowStudio({
 
               <div className="studio-mode-actions">
                 <Button
-                  variant={mode === "auto" ? "primary" : "secondary"}
+                  variant={mode === "auto" ? "default" : "secondary"}
                   onClick={() => setMode("auto")}
                 >
                   Auto-apply mode
                 </Button>
                 <Button
-                  variant={mode === "single" ? "primary" : "ghost"}
+                  variant={mode === "single" ? "default" : "ghost"}
                   onClick={() => setMode("single")}
                 >
                   Single-job mode
@@ -518,11 +518,11 @@ export function ResumeWorkflowStudio({
                         <p>{selectedJob.company}</p>
                       </div>
                       <div className="chip-row">
-                        <Badge variant="accent">
+                        <Badge variant="default">
                           {Math.round((selectedJob.score ?? 0) * 100)}% match
                         </Badge>
                         <Badge>{selectedJob.location ?? "No location listed"}</Badge>
-                        <Badge variant="success">{selectedJob.remote ? "Remote" : "Onsite"}</Badge>
+                        <Badge variant="secondary">{selectedJob.remote ? "Remote" : "Onsite"}</Badge>
                       </div>
                     </div>
                   ) : (

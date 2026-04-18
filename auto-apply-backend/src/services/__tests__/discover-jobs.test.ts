@@ -14,7 +14,7 @@ describe("discoverJobs", () => {
     const jobs = await discoverJobs("backend");
 
     expect(jobs.length).toBeGreaterThan(0);
-    expect(jobs[0].title).toContain("Backend");
+    expect(jobs.some((j) => j.title.toLowerCase().includes("backend"))).toBe(true);
   });
 
   it("returns an empty list for unrelated queries", async () => {

@@ -131,10 +131,17 @@ function createInternalCatalogAdapter(): JobSourceAdapter {
   return {
     name: "internal-catalog",
     async search(query: string) {
-      const normalizedQuery = query.toLowerCase();
+      const normalizedQuery = query.toLowerCase().trim();
+      if (normalizedQuery.length === 0) return demoCatalog;
+      // Token-based match: any token in the query that appears in the haystack scores a hit.
+      const tokens = normalizedQuery
+        .split(/[^a-z0-9+#.]+/)
+        .map((t) => t.trim())
+        .filter((t) => t.length >= 2);
+      if (tokens.length === 0) return demoCatalog;
       return demoCatalog.filter((job) => {
         const haystack = `${job.title} ${job.company} ${job.description}`.toLowerCase();
-        return haystack.includes(normalizedQuery) || normalizedQuery.length === 0;
+        return tokens.some((t) => haystack.includes(t));
       });
     },
   };
