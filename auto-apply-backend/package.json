@@ -10,6 +10,8 @@
     "test:watch": "vitest --configLoader native"
   },
   "dependencies": {
+    "@ai-sdk/anthropic": "^3.0.71",
+    "@ai-sdk/openai": "^3.0.53",
     "@supabase/supabase-js": "^2.103.3",
     "@upstash/redis": "^1.35.4",
     "ai": "^6.0.168",
@@ -22,8 +24,10 @@
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20260401.0",
+    "@vitest/coverage-v8": "^3.2.4",
     "supabase": "^2.88.1",
     "typescript": "^5.7.0",
+    "vite-tsconfig-paths": "^6.1.1",
     "vitest": "^3.0.0",
     "wrangler": "^4.0.0"
   }

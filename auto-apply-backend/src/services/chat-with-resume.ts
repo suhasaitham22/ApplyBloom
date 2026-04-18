@@ -17,6 +17,8 @@ export interface ChatWithResumeInput {
   resume: StructuredResume;
   messages: ChatMessage[];
   instruction: string;
+  job?: { title?: string; company?: string; description?: string; url?: string } | null;
+  systemPromptOverride?: string | null;
 }
 
 export type ResumeOp =
@@ -90,22 +92,34 @@ function buildTools(): ToolSet {
 
 export async function chatWithResume(
   input: ChatWithResumeInput,
-  env: { AI?: Ai; DEMO_MODE?: string; AI_MODEL_ID?: string },
+  env: import("@/lib/ai/sdk").AiEnv,
 ): Promise<ChatWithResumeResult> {
+  // Build priming context block
+  const contextParts: string[] = [];
+  contextParts.push("CURRENT RESUME (JSON):\n```json\n" + JSON.stringify(input.resume, null, 2) + "\n```");
+  if (input.job && (input.job.title || input.job.description)) {
+    contextParts.push(
+      "TARGET JOB:\n" +
+        (input.job.title ? `Title: ${input.job.title}\n` : "") +
+        (input.job.company ? `Company: ${input.job.company}\n` : "") +
+        (input.job.url ? `URL: ${input.job.url}\n` : "") +
+        (input.job.description ? `\nDescription:\n${input.job.description.slice(0, 4000)}` : ""),
+    );
+  }
+
   const messages: Array<{ role: "user" | "assistant"; content: string }> = [
-    {
-      role: "user",
-      content:
-        "CURRENT RESUME (JSON):\n```json\n" +
-        JSON.stringify(input.resume, null, 2) +
-        "\n```\n\nPrevious conversation context is below. Respond conversationally and call tools to apply any requested changes. Never invent employers, dates, or degrees.",
-    },
+    { role: "user", content: contextParts.join("\n\n") },
+    { role: "assistant", content: "Got it — I have your resume in view. What would you like to work on?" },
     ...input.messages,
     { role: "user", content: input.instruction },
   ];
 
+  const system = input.systemPromptOverride?.trim()
+    ? input.systemPromptOverride.trim()
+    : PROMPTS.chat_resume.system;
+
   const { text, toolCalls, meta } = await runChat(env, {
-    system: PROMPTS.chat_resume.system,
+    system,
     messages,
     tools: buildTools(),
     promptVersion: PROMPTS.chat_resume.version,
@@ -171,6 +185,68 @@ function toolInputToOp(name: string, raw: unknown): ResumeOp | null {
   } catch {
     return null;
   }
+}
+
+/**
+ * Chat when no resume is attached yet. General career Q&A.
+ */
+export async function chatWithoutResume(
+  input: {
+    messages: ChatMessage[];
+    instruction: string;
+    job?: { title?: string; company?: string; description?: string; url?: string } | null;
+    systemPromptOverride?: string | null;
+  },
+  env: import("@/lib/ai/sdk").AiEnv,
+): Promise<{ assistant_message: string; meta: LlmCallMeta }> {
+  const messages: Array<{ role: "user" | "assistant"; content: string }> = [];
+  if (input.job && (input.job.title || input.job.description)) {
+    messages.push({
+      role: "user",
+      content:
+        "Context — TARGET JOB:\n" +
+        (input.job.title ? `Title: ${input.job.title}\n` : "") +
+        (input.job.company ? `Company: ${input.job.company}\n` : "") +
+        (input.job.description ? `\nDescription:\n${input.job.description.slice(0, 4000)}` : ""),
+    });
+    messages.push({ role: "assistant", content: "Got it — I have the job context. What would you like to know?" });
+  }
+  messages.push(...input.messages);
+  messages.push({ role: "user", content: input.instruction });
+
+  const system = input.systemPromptOverride?.trim()
+    ? input.systemPromptOverride.trim()
+    : PROMPTS.general_chat.system;
+
+  const { text, meta } = await runChat(env, {
+    system,
+    messages,
+    promptVersion: PROMPTS.general_chat.version,
+    fallback: () => ({
+      text: heuristicNoResumeReply(input.instruction, input.job ?? null),
+    }),
+  });
+
+  return {
+    assistant_message: text || "(no response)",
+    meta,
+  };
+}
+
+function heuristicNoResumeReply(instruction: string, job: { title?: string } | null): string {
+  const lower = instruction.toLowerCase().trim();
+  if (/^(hi|hello|hey|yo|howdy|sup)\b/.test(lower)) {
+    return job?.title
+      ? `Hi! I see you're looking at ${job.title}. Upload your resume and I'll help tailor it for this role.`
+      : "Hi! Upload your resume (click 'Add resume' above) and I'll help you polish it, tailor it to jobs, and improve your ATS score.";
+  }
+  if (/(resume|upload|cv)/i.test(lower)) {
+    return "Click 'Add resume' at the top to upload a PDF, DOCX, or TXT. I parse it and then we can iterate together — rewrite bullets, add skills, tailor to a job, etc.";
+  }
+  if (/(how|what|why|advice|tip)/i.test(lower)) {
+    return "Happy to help! Upload your resume first so I can give specific advice rather than generic tips. Once uploaded, ask me things like 'tighten my summary' or 'quantify my bullets'.";
+  }
+  return "Upload a resume first (click 'Add resume' above), then I can help you edit it, improve ATS score, and tailor it to a job.";
 }
 
 // ============================================================

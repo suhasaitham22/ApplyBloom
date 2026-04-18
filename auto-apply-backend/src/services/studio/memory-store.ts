@@ -44,6 +44,7 @@ export interface ChatSession {
   tailored_resume_id: string | null;
   job: { title?: string; company?: string; description?: string; url?: string; source?: string } | null;
   preferences: AutoApplyPreferences;
+  system_prompt: string | null;
   daily_cap: number;
   applications_today: number;
   application_id: string | null;
@@ -219,6 +220,7 @@ export async function createSession(userId: string, opts: {
     tailored_resume_id: null,
     job: null,
     preferences: opts.preferences ?? {},
+    system_prompt: null,
     daily_cap: 10,
     applications_today: 0,
     application_id: null,

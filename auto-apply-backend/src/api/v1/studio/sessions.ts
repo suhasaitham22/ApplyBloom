@@ -18,7 +18,7 @@ import {
 } from "@/services/studio/store";
 import { structureResume, type StructuredResume } from "@/services/structure-resume";
 import { tailorResumeForJob } from "@/services/tailor-resume-llm";
-import { chatWithResume, applyOperations } from "@/services/chat-with-resume";
+import { chatWithResume, chatWithoutResume, applyOperations } from "@/services/chat-with-resume";
 
 type Route =
   | { kind: "list"; method: "GET" | "POST" }
@@ -71,6 +71,7 @@ export async function handleSessionsRequest(request: Request, env: Env, route: R
             mode: body?.mode === "auto" ? "auto" : body?.mode === "single" ? "single" : undefined,
             job: body && "job" in body ? (body.job as any) : undefined,
             status: typeof body?.status === "string" ? (body.status as any) : undefined,
+            system_prompt: typeof body?.system_prompt === "string" ? body.system_prompt : (body?.system_prompt === null ? null : undefined),
           });
           return ok({ session: updated });
         }
@@ -96,24 +97,46 @@ export async function handleSessionsRequest(request: Request, env: Env, route: R
           let resumeRecord = s.resume_id ? await getResume(env, userId, s.resume_id) : null;
           if (resumeRecord?.parsed) resume = resumeRecord.parsed as StructuredResume;
 
-          // If no resume linked, reply with guidance only
-          if (!resume) {
-            const reply = noResumeReply(content, s);
-            const assistantMsg = await appendMessage(env, userId, route.id, {
-              role: "assistant",
-              content: reply,
-            });
-            return ok({ messages: [m, assistantMsg] }, 201);
-          }
-
-          // Call chat-with-resume (LLM via AI SDK tools, or heuristic fallback)
+          // Load conversation history (last 10 user/assistant turns)
           const history = (await listMessages(env, route.id))
             .filter((msg) => msg.role === "user" || msg.role === "assistant")
             .slice(-10)
             .map((msg) => ({ role: msg.role as "user" | "assistant", content: msg.content }));
 
+          const systemPromptOverride = (s as { system_prompt?: string | null }).system_prompt ?? null;
+
+          // No resume → general chat (still uses LLM when available)
+          if (!resume) {
+            const reply = await chatWithoutResume(
+              {
+                messages: history,
+                instruction: content,
+                job: s.job,
+                systemPromptOverride,
+              },
+              env,
+            );
+            const assistantMsg = await appendMessage(env, userId, route.id, {
+              role: "assistant",
+              content: reply.assistant_message,
+              model: reply.meta.model,
+              prompt_version: reply.meta.prompt_version,
+              tokens_input: reply.meta.tokens_input,
+              tokens_output: reply.meta.tokens_output,
+              latency_ms: reply.meta.latency_ms,
+            });
+            return ok({ messages: [m, assistantMsg] }, 201);
+          }
+
+          // With-resume chat: LLM + tools, or heuristic fallback
           const chat = await chatWithResume(
-            { resume, messages: history, instruction: content },
+            {
+              resume,
+              messages: history,
+              instruction: content,
+              job: s.job,
+              systemPromptOverride,
+            },
             env,
           );
 
@@ -223,17 +246,6 @@ export async function handleSessionsRequest(request: Request, env: Env, route: R
     if (e instanceof StudioError) return problem({ title: e.message, status: e.status, code: e.code });
     return problem({ title: "Internal error", status: 500, detail: e instanceof Error ? e.message : String(e) });
   }
-}
-
-function noResumeReply(userMessage: string, session: { job: { title?: string } | null }): string {
-  const lower = userMessage.toLowerCase();
-  if (lower.includes("resume") || lower.includes("upload")) {
-    return "Click \"Add resume\" at the top to upload a PDF, DOCX, or TXT — I parse it and then we can edit together.";
-  }
-  if (session.job?.title) {
-    return `I see the job (${session.job.title}) but no resume yet. Click \"Add resume\" to upload one — then I can tailor it for this role.`;
-  }
-  return "Upload a resume first (click \"Add resume\" above), then I can help you edit it, improve ATS score, and tailor it to a job.";
 }
 
 function describeOp(op: { op: string; value?: unknown; heading?: string; index?: number }): string {
