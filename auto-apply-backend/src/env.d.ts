@@ -26,4 +26,11 @@ interface Env {
   LEVER_COMPANY_TOKENS?: string;
 
   AI?: Ai;
+  AI_MODEL_ID?: string;
+
+  // External LLM providers (optional — chosen in priority order)
+  OPENAI_API_KEY?: string;
+  OPENAI_MODEL?: string;
+  ANTHROPIC_API_KEY?: string;
+  ANTHROPIC_MODEL?: string;
 }

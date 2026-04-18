@@ -54,6 +54,7 @@ create table if not exists public.sessions (
   tailored_resume_id   uuid references public.resumes(id) on delete set null,
   job                  jsonb,                           -- { title, company, description, url, source }
   preferences          jsonb not null default '{}'::jsonb, -- auto-apply: { experience_level, locations, remote, salary_min, … }
+  system_prompt        text,                            -- optional per-session system prompt override
   daily_cap            integer default 10,
   applications_today   integer not null default 0,
   application_id       text,
