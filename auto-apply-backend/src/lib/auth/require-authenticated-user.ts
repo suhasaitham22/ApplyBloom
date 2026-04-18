@@ -19,8 +19,10 @@ export async function requireAuthenticatedUser(request: Request, env: Env) {
     ? authorization.slice("Bearer ".length).trim()
     : "";
 
+  const demoMode = env.DEMO_MODE === "true";
+
   // Real Supabase JWT verification path
-  if (bearerToken && env.SUPABASE_JWT_SECRET) {
+  if (bearerToken && env.SUPABASE_JWT_SECRET && !demoMode) {
     try {
       const secretKey = new TextEncoder().encode(env.SUPABASE_JWT_SECRET);
       const { payload } = await jwtVerify(bearerToken, secretKey, {
@@ -41,6 +43,21 @@ export async function requireAuthenticatedUser(request: Request, env: Env) {
         error instanceof Error ? error.message : "JWT verification failed",
       );
     }
+  }
+
+  // DEMO_MODE short-circuit: accept bearer as user id verbatim.
+  // Backend still writes to real Supabase if SUPABASE_URL is configured.
+  if (demoMode) {
+    const userId = bearerToken || env.DEV_DEMO_USER_ID || "demo_user";
+    return {
+      ok: true as const,
+      user: {
+        id: userId,
+        email: `${userId}@demo.local`,
+        token: userId,
+        verified: false as const,
+      },
+    };
   }
 
   // Demo-friendly fallback: in any non-production environment (no JWT secret configured),

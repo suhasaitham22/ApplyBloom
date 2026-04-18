@@ -1,5 +1,12 @@
-import { runLlmJson } from "@/lib/ai/workers-ai";
-import type { StructuredResume } from "@/services/structure-resume";
+// Resume editing via natural language.
+// - When an AI binding is available → Vercel AI SDK with proper tools
+// - Otherwise → deterministic heuristic fallback (handles common intents)
+
+import { z } from "zod";
+import { tool, type ToolSet } from "ai";
+import { runChat, type LlmCallMeta } from "@/lib/ai/sdk";
+import { PROMPTS } from "@/lib/prompts";
+import type { StructuredResume, StructuredResumeSection } from "@/services/structure-resume";
 
 export interface ChatMessage {
   role: "user" | "assistant";
@@ -9,63 +16,346 @@ export interface ChatMessage {
 export interface ChatWithResumeInput {
   resume: StructuredResume;
   messages: ChatMessage[];
-  /** User's latest instruction, e.g. "make the summary more concise". */
   instruction: string;
 }
 
+export type ResumeOp =
+  | { op: "replace_summary"; value: string }
+  | { op: "replace_headline"; value: string }
+  | { op: "set_skills"; value: string[] }
+  | { op: "add_skills"; value: string[] }
+  | { op: "remove_skills"; value: string[] }
+  | { op: "rewrite_bullet"; section: "experience" | "education"; heading: string; index: number; value: string }
+  | { op: "add_bullet"; section: "experience" | "education"; heading: string; value: string };
+
 export interface ChatWithResumeResult {
   assistant_message: string;
-  updated_resume: StructuredResume | null;
-  operations: Array<
-    | { op: "replace_summary"; value: string }
-    | { op: "replace_headline"; value: string }
-    | { op: "set_skills"; value: string[] }
-    | { op: "rewrite_bullet"; section: "experience" | "education"; heading: string; index: number; value: string }
-  >;
+  operations: ResumeOp[];
+  thinking?: string;
+  meta: LlmCallMeta;
+}
+
+// ============================================================
+// AI SDK tools — the model decides when to call each
+// ============================================================
+function buildTools(): ToolSet {
+  return {
+    replace_summary: tool({
+      description: "Replace the candidate's professional summary. Aim for 30–80 words targeting their field.",
+      inputSchema: z.object({
+        value: z.string().describe("New summary text"),
+      }),
+      execute: async ({ value }) => ({ ok: true, op: { op: "replace_summary", value } }),
+    }),
+    replace_headline: tool({
+      description: "Replace the target role headline (e.g. 'Senior Backend Engineer').",
+      inputSchema: z.object({ value: z.string() }),
+      execute: async ({ value }) => ({ ok: true, op: { op: "replace_headline", value } }),
+    }),
+    add_skills: tool({
+      description: "Add one or more new skills to the candidate's skill list.",
+      inputSchema: z.object({
+        skills: z.array(z.string()).describe("Skills to add"),
+      }),
+      execute: async ({ skills }) => ({ ok: true, op: { op: "add_skills", value: skills } }),
+    }),
+    remove_skills: tool({
+      description: "Remove one or more skills from the candidate's skill list.",
+      inputSchema: z.object({
+        skills: z.array(z.string()),
+      }),
+      execute: async ({ skills }) => ({ ok: true, op: { op: "remove_skills", value: skills } }),
+    }),
+    rewrite_bullet: tool({
+      description: "Rewrite a single achievement bullet to be stronger (start with action verb, include metrics).",
+      inputSchema: z.object({
+        section: z.enum(["experience", "education"]),
+        heading: z.string().describe("Exact heading of the section containing the bullet"),
+        index: z.number().int().min(0).describe("Zero-based index of the bullet to rewrite"),
+        value: z.string().describe("New bullet text"),
+      }),
+      execute: async (input) => ({ ok: true, op: { op: "rewrite_bullet", ...input } }),
+    }),
+    add_bullet: tool({
+      description: "Add a new achievement bullet to an existing experience or education section.",
+      inputSchema: z.object({
+        section: z.enum(["experience", "education"]),
+        heading: z.string(),
+        value: z.string().describe("New bullet — action verb first, include metric"),
+      }),
+      execute: async (input) => ({ ok: true, op: { op: "add_bullet", ...input } }),
+    }),
+  };
 }
 
 export async function chatWithResume(
   input: ChatWithResumeInput,
-  env: Pick<Env, "AI" | "DEMO_MODE">,
-): Promise<{ data: ChatWithResumeResult; demo: boolean }> {
-  return runLlmJson<ChatWithResumeResult>(env, {
-    system:
-      "You help the user iterate on their resume via chat. Answer conversationally in " +
-      "assistant_message and, when the user asks for a change, emit structured operations " +
-      "the editor can apply. Never invent employers, dates, or degrees. Return ONLY JSON.",
-    user: JSON.stringify(input),
-    exampleOutput: {
-      assistant_message: "I tightened the summary to two sentences.",
-      updated_resume: null,
-      operations: [{ op: "replace_summary", value: "New concise summary." }],
+  env: { AI?: Ai; DEMO_MODE?: string; AI_MODEL_ID?: string },
+): Promise<ChatWithResumeResult> {
+  const messages: Array<{ role: "user" | "assistant"; content: string }> = [
+    {
+      role: "user",
+      content:
+        "CURRENT RESUME (JSON):\n```json\n" +
+        JSON.stringify(input.resume, null, 2) +
+        "\n```\n\nPrevious conversation context is below. Respond conversationally and call tools to apply any requested changes. Never invent employers, dates, or degrees.",
     },
-    fallback: () => heuristicChat(input),
+    ...input.messages,
+    { role: "user", content: input.instruction },
+  ];
+
+  const { text, toolCalls, meta } = await runChat(env, {
+    system: PROMPTS.chat_resume.system,
+    messages,
+    tools: buildTools(),
+    promptVersion: PROMPTS.chat_resume.version,
+    fallback: () => {
+      const fb = heuristicChat(input);
+      return {
+        text: fb.assistant_message,
+        toolCalls: fb.operations.map((op) => ({ toolName: op.op, input: opToToolInput(op) })),
+      };
+    },
   });
+
+  const operations: ResumeOp[] = toolCalls
+    .map((tc) => toolInputToOp(tc.toolName, tc.input))
+    .filter((o): o is ResumeOp => o !== null);
+
+  return {
+    assistant_message: text || "(no response)",
+    operations,
+    meta,
+  };
 }
 
-function heuristicChat(input: ChatWithResumeInput): ChatWithResumeResult {
-  const lower = input.instruction.toLowerCase();
-
-  if (lower.includes("shorter") || lower.includes("concise") || lower.includes("tighten")) {
-    const value = input.resume.summary.split(/(?<=\.)\s+/).slice(0, 2).join(" ");
-    return {
-      assistant_message: "Tightened your summary to the first two sentences.",
-      updated_resume: null,
-      operations: [{ op: "replace_summary", value }],
-    };
+function opToToolInput(op: ResumeOp): Record<string, unknown> {
+  switch (op.op) {
+    case "replace_summary":
+    case "replace_headline":
+      return { value: op.value };
+    case "set_skills":
+    case "add_skills":
+    case "remove_skills":
+      return { skills: op.value };
+    case "rewrite_bullet":
+      return { section: op.section, heading: op.heading, index: op.index, value: op.value };
+    case "add_bullet":
+      return { section: op.section, heading: op.heading, value: op.value };
   }
-  if (lower.includes("headline")) {
+}
+
+function toolInputToOp(name: string, raw: unknown): ResumeOp | null {
+  const input = raw as Record<string, unknown>;
+  try {
+    switch (name) {
+      case "replace_summary": return { op: "replace_summary", value: String(input.value ?? "") };
+      case "replace_headline": return { op: "replace_headline", value: String(input.value ?? "") };
+      case "add_skills": return { op: "add_skills", value: Array.isArray(input.skills) ? input.skills.map(String) : [] };
+      case "remove_skills": return { op: "remove_skills", value: Array.isArray(input.skills) ? input.skills.map(String) : [] };
+      case "rewrite_bullet": return {
+        op: "rewrite_bullet",
+        section: (input.section as "experience" | "education") ?? "experience",
+        heading: String(input.heading ?? ""),
+        index: Number(input.index ?? 0),
+        value: String(input.value ?? ""),
+      };
+      case "add_bullet": return {
+        op: "add_bullet",
+        section: (input.section as "experience" | "education") ?? "experience",
+        heading: String(input.heading ?? ""),
+        value: String(input.value ?? ""),
+      };
+      default: return null;
+    }
+  } catch {
+    return null;
+  }
+}
+
+// ============================================================
+// Heuristic fallback — runs when AI binding absent (demo / CI)
+// ============================================================
+function heuristicChat(input: ChatWithResumeInput): { assistant_message: string; operations: ResumeOp[] } {
+  const raw = input.instruction.trim();
+  const lower = raw.toLowerCase();
+  const r = input.resume;
+
+  if (/^(hi|hey|hello|yo|howdy)\b/i.test(raw)) {
     return {
-      assistant_message: `Headline kept as "${input.resume.headline}" — Workers AI is unavailable so I can only apply explicit edits.`,
-      updated_resume: null,
+      assistant_message: `Hi! I see your resume (${r.skills?.length ?? 0} skills, ${r.experience?.length ?? 0} roles). Try: "tighten my summary", "add Python", "quantify my Acme bullets", or "improve my ATS score".`,
       operations: [],
     };
   }
+
+  if (/(what|show|tell).{0,20}(resume|summary|skills|experience)/i.test(raw)) {
+    return { assistant_message: summariseResume(r), operations: [] };
+  }
+
+  if (/(shorter|concise|tighten|trim).{0,20}(summary|intro)/i.test(lower)) {
+    const sentences = (r.summary || "").split(/(?<=[.!?])\s+/).filter(Boolean);
+    const value = sentences.slice(0, 2).join(" ").slice(0, 250);
+    return {
+      assistant_message: value ? "Tightened your summary to two sentences." : "I couldn't find a summary to tighten.",
+      operations: value ? [{ op: "replace_summary", value }] : [],
+    };
+  }
+
+  if (/(longer|more detail|expand).{0,20}(summary|intro)/i.test(lower)) {
+    const value = buildSummary(r);
+    return {
+      assistant_message: "Expanded the summary with skills + role count.",
+      operations: value ? [{ op: "replace_summary", value }] : [],
+    };
+  }
+
+  const headlineMatch = raw.match(/(?:change|set|update).*(?:headline|title).*(?:to|as)\s+"?([^"]+?)"?$/i);
+  if (headlineMatch) {
+    return {
+      assistant_message: `Updated your headline to "${headlineMatch[1].trim()}".`,
+      operations: [{ op: "replace_headline", value: headlineMatch[1].trim() }],
+    };
+  }
+
+  const addSkillMatch = raw.match(/\badd\s+(.+?)\s+(?:to\s+(?:my\s+)?skills|skill)?$/i);
+  if (addSkillMatch && /^add\s/i.test(raw)) {
+    const items = addSkillMatch[1].split(/,\s*|\s+and\s+/i).map((s) => s.trim()).filter(Boolean);
+    if (items.length > 0) return {
+      assistant_message: `Added ${items.join(", ")} to your skills.`,
+      operations: [{ op: "add_skills", value: items }],
+    };
+  }
+
+  const rmSkillMatch = raw.match(/\bremove\s+(.+?)\s+from\s+(?:my\s+)?skills/i);
+  if (rmSkillMatch) {
+    const items = rmSkillMatch[1].split(/,\s*|\s+and\s+/i).map((s) => s.trim()).filter(Boolean);
+    return {
+      assistant_message: `Removed ${items.join(", ")} from your skills.`,
+      operations: [{ op: "remove_skills", value: items }],
+    };
+  }
+
+  if (/\b(improve|optimize|optimise|boost).{0,30}(ats|score)|\b(quantify|metrics|add numbers)\b/i.test(lower)) {
+    const ops: ResumeOp[] = [];
+    const updates: string[] = [];
+    const exp = r.experience ?? [];
+    for (const e of exp) {
+      e.bullets.forEach((b, idx) => {
+        if (!/\d/.test(b) && b.length > 10) {
+          const improved = addMetricPlaceholder(b);
+          if (improved !== b) ops.push({ op: "rewrite_bullet", section: "experience", heading: e.heading, index: idx, value: improved });
+        }
+      });
+    }
+    const words = (r.summary || "").split(/\s+/).length;
+    if (words < 30) {
+      const value = buildSummary(r);
+      if (value) { ops.push({ op: "replace_summary", value }); updates.push("expanded summary"); }
+    }
+    if ((r.skills?.length ?? 0) < 10) {
+      const sugg = suggestSkillsFromHeadline(r.headline || "", r.skills ?? []);
+      if (sugg.length > 0) { ops.push({ op: "add_skills", value: sugg }); updates.push(`added ${sugg.length} skill keywords`); }
+    }
+    if (ops.length === 0) return { assistant_message: "Your resume already looks strong! Try: 'rewrite my Acme bullets' or 'add a project'.", operations: [] };
+    const metrics = ops.filter((o) => o.op === "rewrite_bullet").length;
+    if (metrics > 0) updates.unshift(`flagged ${metrics} bullets for quantification`);
+    return { assistant_message: `ATS pass: ${updates.join("; ")}. Review the changes in the preview.`, operations: ops };
+  }
+
+  const rewriteMatch = raw.match(/rewrite.*(?:bullets?|points?).*(?:at|for|in)\s+([\w .&-]+)/i);
+  if (rewriteMatch) {
+    const target = rewriteMatch[1].trim().toLowerCase();
+    const exp = r.experience ?? [];
+    const match = exp.find((e) => e.heading.toLowerCase().includes(target));
+    if (match) {
+      const ops: ResumeOp[] = match.bullets.map((b, idx) => ({
+        op: "rewrite_bullet", section: "experience", heading: match.heading, index: idx, value: addMetricPlaceholder(b),
+      }));
+      return { assistant_message: `Rewrote ${ops.length} bullets at ${match.heading.split(",")[0]} with metric placeholders.`, operations: ops };
+    }
+    return { assistant_message: `I couldn't find "${rewriteMatch[1]}" in your experience.`, operations: [] };
+  }
+
   return {
-    assistant_message:
-      "I'm in heuristic mode (Workers AI unavailable). Try: 'make the summary shorter' or " +
-      "'reorder skills to emphasize X'.",
-    updated_resume: null,
+    assistant_message: `I can see your resume (${r.skills?.length ?? 0} skills, ${r.experience?.length ?? 0} roles). Try: "improve my ATS score", "tighten my summary", "add AWS to skills", or "rewrite my Acme bullets".`,
     operations: [],
   };
+}
+
+function summariseResume(r: StructuredResume): string {
+  const parts: string[] = [];
+  if (r.full_name) parts.push(`${r.full_name}${r.headline ? ` · ${r.headline}` : ""}`);
+  if (r.summary) parts.push(`Summary: "${r.summary.slice(0, 160)}${r.summary.length > 160 ? "…" : ""}"`);
+  if (r.skills?.length) parts.push(`Skills: ${r.skills.slice(0, 10).join(", ")}${r.skills.length > 10 ? ` (+${r.skills.length - 10})` : ""}`);
+  if (r.experience?.length) parts.push(`Experience: ${r.experience.map((e) => e.heading.split(",")[0]).slice(0, 4).join(", ")}`);
+  return parts.join("\n");
+}
+
+function buildSummary(r: StructuredResume): string {
+  const role = r.headline || "Senior professional";
+  const topSkills = (r.skills ?? []).slice(0, 5).join(", ");
+  const firstExp = r.experience?.[0]?.heading.split(",")[0] || "";
+  return `${role} with proven impact shipping production systems${firstExp ? ` at ${firstExp}` : ""}. Experienced in ${topSkills || "modern technologies"} with a track record of delivering measurable outcomes across the stack.`.slice(0, 400);
+}
+
+function addMetricPlaceholder(bullet: string): string {
+  const b = bullet.trim();
+  if (/\d/.test(b)) return b;
+  if (/^(led|built|shipped|reduced|increased)/i.test(b)) return b + " (add metric, e.g. 30% / 5k users / 2x faster)";
+  return "Delivered " + b.charAt(0).toLowerCase() + b.slice(1) + " (add metric)";
+}
+
+function suggestSkillsFromHeadline(headline: string, existing: string[]): string[] {
+  const lower = headline.toLowerCase();
+  const existingLower = new Set(existing.map((s) => s.toLowerCase()));
+  const buckets: Record<string, string[]> = {
+    backend: ["PostgreSQL", "Redis", "Docker", "Kubernetes", "CI/CD", "REST", "GraphQL"],
+    frontend: ["React", "TypeScript", "Next.js", "Tailwind", "Vitest", "Accessibility"],
+    fullstack: ["React", "TypeScript", "Node.js", "PostgreSQL", "Docker", "GraphQL"],
+    data: ["SQL", "Python", "Airflow", "dbt", "Snowflake", "Pandas"],
+    ml: ["Python", "PyTorch", "TensorFlow", "scikit-learn", "SQL", "AWS"],
+    product: ["JIRA", "Figma", "A/B Testing", "SQL", "Roadmapping"],
+    designer: ["Figma", "Sketch", "Prototyping", "User Research", "Accessibility"],
+  };
+  let bucket: string[] = [];
+  for (const key of Object.keys(buckets)) { if (lower.includes(key)) { bucket = buckets[key]; break; } }
+  if (bucket.length === 0) bucket = ["Agile", "Git", "Communication"];
+  return bucket.filter((s) => !existingLower.has(s.toLowerCase())).slice(0, 5);
+}
+
+// ============================================================
+// Apply operations to a structured resume
+// ============================================================
+export function applyOperations(resume: StructuredResume, ops: ResumeOp[]): StructuredResume {
+  const out: StructuredResume = JSON.parse(JSON.stringify(resume));
+  for (const op of ops) {
+    switch (op.op) {
+      case "replace_summary": out.summary = op.value; break;
+      case "replace_headline": out.headline = op.value; break;
+      case "set_skills": out.skills = op.value; break;
+      case "add_skills": {
+        const lowerExisting = new Set(out.skills.map((s) => s.toLowerCase()));
+        for (const s of op.value) if (!lowerExisting.has(s.toLowerCase())) out.skills.push(s);
+        break;
+      }
+      case "remove_skills": {
+        const rm = new Set(op.value.map((s) => s.toLowerCase()));
+        out.skills = out.skills.filter((s) => !rm.has(s.toLowerCase()));
+        break;
+      }
+      case "rewrite_bullet": {
+        const list: StructuredResumeSection[] = op.section === "experience" ? out.experience : out.education;
+        const sec = list.find((s) => s.heading === op.heading);
+        if (sec && sec.bullets[op.index] !== undefined) sec.bullets[op.index] = op.value;
+        break;
+      }
+      case "add_bullet": {
+        const list: StructuredResumeSection[] = op.section === "experience" ? out.experience : out.education;
+        const sec = list.find((s) => s.heading === op.heading);
+        if (sec) sec.bullets.push(op.value);
+        break;
+      }
+    }
+  }
+  return out;
 }

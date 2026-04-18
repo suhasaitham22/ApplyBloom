@@ -34,9 +34,34 @@ export async function middleware(request: NextRequest) {
     if (data.user) user = { id: data.user.id };
   }
 
-  if (!user) {
+  // Demo-cookie fallback ONLY honored when DEMO_MODE is enabled.
+  // When DEMO_MODE is off (production / real auth), stale demo cookies from
+  // earlier testing must not grant access.
+  const demoModeOn = process.env.NEXT_PUBLIC_DEMO_MODE === "true";
+
+  if (!user && demoModeOn) {
     const demoId = request.cookies.get(DEMO_COOKIE_NAME)?.value;
     if (demoId) user = { id: demoId };
+  }
+
+  // Auto-grant demo session when DEMO_MODE is on (landing-page demo UX)
+  if (!user && demoModeOn) {
+    const demoId = process.env.NEXT_PUBLIC_DEMO_USER_ID || "local_demo_user";
+    response.cookies.set({
+      name: DEMO_COOKIE_NAME,
+      value: demoId,
+      path: "/",
+      sameSite: "lax",
+      httpOnly: false,
+      maxAge: 60 * 60 * 24 * 7,
+    });
+    user = { id: demoId };
+  }
+
+  // When DEMO_MODE is off, also proactively clear any stale demo cookie
+  // so browsers that carry one from earlier testing do not get stuck.
+  if (!demoModeOn && request.cookies.get(DEMO_COOKIE_NAME)) {
+    response.cookies.set({ name: DEMO_COOKIE_NAME, value: "", path: "/", maxAge: 0 });
   }
 
   const isProtected = PROTECTED_PREFIXES.some((p) => pathname === p || pathname.startsWith(`${p}/`));

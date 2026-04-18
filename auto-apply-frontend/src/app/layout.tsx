@@ -4,6 +4,7 @@ import "katex/dist/katex.min.css";
 import "./globals.css";
 import { QueryProvider } from "@/lib/query/provider";
 import { Toaster } from "sonner";
+import { GlobalHashAuthHandler } from "@/features/auth/components/global-hash-auth-handler";
 
 const dmSans = DM_Sans({ subsets: ["latin"], variable: "--font-dm-sans", display: "swap" });
 const syne = Syne({ subsets: ["latin"], variable: "--font-syne", display: "swap" });
@@ -28,6 +29,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
     <html lang="en" className={`${dmSans.variable} ${syne.variable}`} suppressHydrationWarning>
       <body suppressHydrationWarning className="min-h-screen bg-background text-foreground antialiased">
         <QueryProvider>
+          <GlobalHashAuthHandler />
           {children}
           <Toaster position="top-right" richColors />
         </QueryProvider>

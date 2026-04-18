@@ -7,6 +7,7 @@ import { handleStructureResumeRequest } from "@/api/v1/structure-resume";
 import { handleTailorResumeRequest } from "@/api/v1/tailor-resume";
 import { handleResumesRequest } from "@/api/v1/studio/resumes";
 import { handleSessionsRequest } from "@/api/v1/studio/sessions";
+import { handleUploadResumeRequest } from "@/api/v1/studio/upload-resume";
 
 function corsHeaders(origin: string | null): Record<string, string> {
   return {
@@ -47,6 +48,7 @@ export default {
       if (m === "GET" && p === "/api/v1/notifications") return handleListNotificationsRequest(request, env);
 
       // Studio: resumes
+      if (m === "POST" && p === "/api/v1/resumes/upload") return handleUploadResumeRequest(request, env);
       if (p === "/api/v1/resumes") {
         if (m === "GET" || m === "POST") return handleResumesRequest(request, env, { method: m });
       }
@@ -69,6 +71,14 @@ export default {
           if (m === "GET" || m === "POST") return handleSessionsRequest(request, env, { kind: "messages", method: m, id });
         } else if (sub === "lock" && m === "POST") {
           return handleSessionsRequest(request, env, { kind: "lock", method: "POST", id });
+        } else if (sub === "start" && m === "POST") {
+          return handleSessionsRequest(request, env, { kind: "start", method: "POST", id });
+        } else if (sub === "pause" && m === "POST") {
+          return handleSessionsRequest(request, env, { kind: "pause", method: "POST", id });
+        } else if (sub === "resume" && m === "POST") {
+          return handleSessionsRequest(request, env, { kind: "resume", method: "POST", id });
+        } else if (sub === "cancel" && m === "POST") {
+          return handleSessionsRequest(request, env, { kind: "cancel", method: "POST", id });
         } else if (sub === "parse" && m === "POST") {
           return handleSessionsRequest(request, env, { kind: "parse", method: "POST", id });
         } else if (sub === "tailor" && m === "POST") {

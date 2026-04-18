@@ -1,219 +1,121 @@
-// In-memory studio store. Keyed by user_id so each "demo" session is isolated.
-// In production this swaps for a Supabase Postgres adapter — same interface.
+// Studio store dispatcher.
+// Re-exports types + functions from either the Supabase adapter (when credentials
+// are present and DEMO_MODE is not true) or the in-memory fallback.
+//
+// Every public function has the same signature in both adapters, so API handlers
+// just call these without caring which backend is active.
 
-export type SessionStatus = "idle" | "collecting" | "ready" | "running" | "completed" | "failed";
-export type SessionMode = "single" | "auto";
+import { supabaseEnabled } from "@/lib/supabase/client";
 
-export interface Resume {
-  id: string;
-  user_id: string;
-  name: string;
-  parsed: unknown | null;
-  raw_text: string | null;
-  created_at: string;
-  is_base: boolean;
+// ── Types & errors (shared) ───────────────────────────────────────────
+export {
+  StudioError,
+  type Resume,
+  type ChatSession,
+  type ChatMessage,
+  type JobQueueEntry,
+  type SessionStatus,
+  type SessionMode,
+  type ChatRole,
+  type JobStatus,
+  type AutoApplyPreferences,
+} from "./memory-store";
+
+// Imports for dispatch
+import type {
+  Resume,
+  ChatSession,
+  ChatMessage,
+  JobQueueEntry,
+  SessionMode,
+  AutoApplyPreferences,
+} from "./memory-store";
+
+import * as mem from "./memory-store";
+import * as sb from "./supabase-store";
+
+type Env = {
+  SUPABASE_URL?: string;
+  SUPABASE_SERVICE_ROLE_KEY?: string;
+  DEMO_MODE?: string;
+};
+
+const useSupabase = (env: Env) => supabaseEnabled(env);
+
+// ── Resumes ────────────────────────────────────────────────────────────
+export function createResume(env: Env, userId: string, opts: Parameters<typeof mem.createResume>[1]): Promise<Resume> {
+  return useSupabase(env) ? sb.sbCreateResume(env, userId, opts) : mem.createResume(userId, opts);
+}
+export function listResumes(env: Env, userId: string): Promise<Resume[]> {
+  return useSupabase(env) ? sb.sbListResumes(env, userId) : mem.listResumes(userId);
+}
+export function getResume(env: Env, userId: string, resumeId: string): Promise<Resume | null> {
+  return useSupabase(env) ? sb.sbGetResume(env, userId, resumeId) : mem.getResume(userId, resumeId);
+}
+export function updateResume(env: Env, userId: string, resumeId: string, patch: Parameters<typeof mem.updateResume>[2]): Promise<Resume | null> {
+  return useSupabase(env) ? sb.sbUpdateResume(env, userId, resumeId, patch) : mem.updateResume(userId, resumeId, patch);
+}
+export function deleteResume(env: Env, userId: string, resumeId: string): Promise<boolean> {
+  return useSupabase(env) ? sb.sbDeleteResume(env, userId, resumeId) : mem.deleteResume(userId, resumeId);
 }
 
-export interface ChatMessage {
-  id: string;
-  session_id: string;
-  role: "user" | "assistant" | "system" | "action";
-  content: string;
-  action_type?: string;
-  action_payload?: unknown;
-  created_at: string;
+// ── Sessions ───────────────────────────────────────────────────────────
+export function hasActiveSession(env: Env, userId: string): Promise<ChatSession | null> {
+  return useSupabase(env) ? sb.sbHasActiveSession(env, userId) : mem.hasActiveSession(userId);
+}
+export function createSession(env: Env, userId: string, opts: { resume_id?: string | null; mode?: SessionMode; title?: string; preferences?: AutoApplyPreferences }): Promise<ChatSession> {
+  return useSupabase(env) ? sb.sbCreateSession(env, userId, opts) : mem.createSession(userId, opts);
+}
+export function listSessions(env: Env, userId: string): Promise<ChatSession[]> {
+  return useSupabase(env) ? sb.sbListSessions(env, userId) : mem.listSessions(userId);
+}
+export function getSession(env: Env, userId: string, sessionId: string): Promise<ChatSession | null> {
+  return useSupabase(env) ? sb.sbGetSession(env, userId, sessionId) : mem.getSession(userId, sessionId);
+}
+export function updateSession(env: Env, userId: string, sessionId: string, patch: Partial<ChatSession>): Promise<ChatSession | null> {
+  return useSupabase(env) ? sb.sbUpdateSession(env, userId, sessionId, patch) : mem.updateSession(userId, sessionId, patch);
+}
+export function startSession(env: Env, userId: string, sessionId: string): Promise<ChatSession | null> {
+  return useSupabase(env) ? sb.sbStartSession(env, userId, sessionId) : mem.startSession(userId, sessionId);
+}
+export function pauseSession(env: Env, userId: string, sessionId: string): Promise<ChatSession | null> {
+  return useSupabase(env) ? sb.sbPauseSession(env, userId, sessionId) : mem.pauseSession(userId, sessionId);
+}
+export function resumeSession(env: Env, userId: string, sessionId: string): Promise<ChatSession | null> {
+  return useSupabase(env) ? sb.sbResumeSession(env, userId, sessionId) : mem.resumeSession(userId, sessionId);
+}
+export function cancelSession(env: Env, userId: string, sessionId: string): Promise<ChatSession | null> {
+  return useSupabase(env) ? sb.sbCancelSession(env, userId, sessionId) : mem.cancelSession(userId, sessionId);
+}
+export function completeSession(env: Env, userId: string, sessionId: string): Promise<ChatSession | null> {
+  return useSupabase(env) ? sb.sbCompleteSession(env, userId, sessionId) : mem.completeSession(userId, sessionId);
 }
 
-export interface ChatSession {
-  id: string;
-  user_id: string;
-  resume_id: string | null;
-  mode: SessionMode;
-  status: SessionStatus;
-  title: string;
-  job: { title?: string; company?: string; description?: string; url?: string } | null;
-  tailored_resume_id: string | null;
-  application_id: string | null;
-  locked_at: string | null;
-  created_at: string;
-  updated_at: string;
+// ── Messages ───────────────────────────────────────────────────────────
+export function listMessages(env: Env, sessionId: string): Promise<ChatMessage[]> {
+  return useSupabase(env) ? sb.sbListMessages(env, sessionId) : mem.listMessages(sessionId);
 }
-
-interface Store {
-  resumes: Map<string, Resume>;
-  sessions: Map<string, ChatSession>;
-  messages: Map<string, ChatMessage[]>; // keyed by session_id
-}
-
-const g = globalThis as unknown as { __applybloom_studio?: Store };
-
-function getStore(): Store {
-  if (!g.__applybloom_studio) {
-    g.__applybloom_studio = {
-      resumes: new Map(),
-      sessions: new Map(),
-      messages: new Map(),
-    };
-  }
-  return g.__applybloom_studio;
-}
-
-function id() {
-  return `id_${Math.random().toString(36).slice(2, 10)}${Date.now().toString(36).slice(-4)}`;
-}
-
-function now() { return new Date().toISOString(); }
-
-// ── Resumes ──────────────────────────────────────────────────────────────
-
-export async function createResume(userId: string, name: string, rawText: string | null = null): Promise<Resume> {
-  const store = getStore();
-  const existing = [...store.resumes.values()].filter((r) => r.user_id === userId);
-  const r: Resume = {
-    id: id(),
-    user_id: userId,
-    name,
-    parsed: null,
-    raw_text: rawText,
-    created_at: now(),
-    is_base: existing.length === 0,
-  };
-  store.resumes.set(r.id, r);
-  return r;
-}
-
-export async function listResumes(userId: string): Promise<Resume[]> {
-  const store = getStore();
-  return [...store.resumes.values()]
-    .filter((r) => r.user_id === userId)
-    .sort((a, b) => (a.created_at < b.created_at ? 1 : -1));
-}
-
-export async function getResume(userId: string, resumeId: string): Promise<Resume | null> {
-  const store = getStore();
-  const r = store.resumes.get(resumeId);
-  if (!r || r.user_id !== userId) return null;
-  return r;
-}
-
-export async function updateResume(userId: string, resumeId: string, patch: Partial<Pick<Resume, "name" | "parsed" | "raw_text" | "is_base">>): Promise<Resume | null> {
-  const store = getStore();
-  const r = store.resumes.get(resumeId);
-  if (!r || r.user_id !== userId) return null;
-  Object.assign(r, patch);
-  store.resumes.set(r.id, r);
-  return r;
-}
-
-export async function deleteResume(userId: string, resumeId: string): Promise<boolean> {
-  const store = getStore();
-  const r = store.resumes.get(resumeId);
-  if (!r || r.user_id !== userId) return false;
-  store.resumes.delete(resumeId);
-  return true;
-}
-
-// ── Sessions ─────────────────────────────────────────────────────────────
-
-export async function hasRunningSession(userId: string): Promise<boolean> {
-  const store = getStore();
-  for (const s of store.sessions.values()) {
-    if (s.user_id === userId && s.status === "running") return true;
-  }
-  return false;
-}
-
-export async function createSession(userId: string, opts: { resume_id?: string | null; mode?: SessionMode; title?: string }): Promise<ChatSession> {
-  const store = getStore();
-  if (await hasRunningSession(userId)) {
-    throw new StudioError(409, "session_locked", "Another session is currently running an automation. Wait for it to complete before starting a new one.");
-  }
-  const s: ChatSession = {
-    id: id(),
-    user_id: userId,
-    resume_id: opts.resume_id ?? null,
-    mode: opts.mode ?? "single",
-    status: "idle",
-    title: opts.title ?? "Untitled session",
-    job: null,
-    tailored_resume_id: null,
-    application_id: null,
-    locked_at: null,
-    created_at: now(),
-    updated_at: now(),
-  };
-  store.sessions.set(s.id, s);
-  store.messages.set(s.id, []);
-  return s;
-}
-
-export async function listSessions(userId: string): Promise<ChatSession[]> {
-  const store = getStore();
-  return [...store.sessions.values()]
-    .filter((s) => s.user_id === userId)
-    .sort((a, b) => (a.created_at < b.created_at ? 1 : -1));
-}
-
-export async function getSession(userId: string, sessionId: string): Promise<ChatSession | null> {
-  const store = getStore();
-  const s = store.sessions.get(sessionId);
-  if (!s || s.user_id !== userId) return null;
-  return s;
-}
-
-export async function updateSession(userId: string, sessionId: string, patch: Partial<ChatSession>): Promise<ChatSession | null> {
-  const store = getStore();
-  const s = store.sessions.get(sessionId);
-  if (!s || s.user_id !== userId) return null;
-  Object.assign(s, patch, { updated_at: now() });
-  store.sessions.set(s.id, s);
-  return s;
-}
-
-export async function lockSession(userId: string, sessionId: string): Promise<ChatSession | null> {
-  const s = await getSession(userId, sessionId);
-  if (!s) return null;
-  if (s.status === "running" || s.status === "completed") {
-    throw new StudioError(409, "already_locked", "This session is already running or completed.");
-  }
-  return await updateSession(userId, sessionId, { status: "running", locked_at: now() });
-}
-
-// ── Messages ─────────────────────────────────────────────────────────────
-
-export async function listMessages(sessionId: string): Promise<ChatMessage[]> {
-  const store = getStore();
-  return store.messages.get(sessionId) ?? [];
-}
-
-export async function appendMessage(
+export function appendMessage(
+  env: Env,
   userId: string,
   sessionId: string,
-  msg: Omit<ChatMessage, "id" | "session_id" | "created_at">,
-  options: { bypassLock?: boolean } = {},
+  msg: Parameters<typeof mem.appendMessage>[2],
+  options?: Parameters<typeof mem.appendMessage>[3],
 ): Promise<ChatMessage> {
-  const s = await getSession(userId, sessionId);
-  if (!s) throw new StudioError(404, "session_not_found", "Session not found.");
-  if (!options.bypassLock && (s.status === "running" || s.status === "completed" || s.status === "failed")) {
-    throw new StudioError(423, "session_locked", "This session cannot accept new messages. Start a new session to continue.");
-  }
-  const store = getStore();
-  const m: ChatMessage = { id: id(), session_id: sessionId, created_at: now(), ...msg };
-  const arr = store.messages.get(sessionId) ?? [];
-  arr.push(m);
-  store.messages.set(sessionId, arr);
-  await updateSession(userId, sessionId, {});
-  return m;
+  return useSupabase(env) ? sb.sbAppendMessage(env, userId, sessionId, msg, options) : mem.appendMessage(userId, sessionId, msg, options);
 }
 
-// ── Errors ───────────────────────────────────────────────────────────────
-
-export class StudioError extends Error {
-  status: number;
-  code: string;
-  constructor(status: number, code: string, message: string) {
-    super(message);
-    this.status = status;
-    this.code = code;
-  }
+// ── Job queue ──────────────────────────────────────────────────────────
+export function enqueueJobs(env: Env, userId: string, sessionId: string, jobs: Parameters<typeof mem.enqueueJobs>[2]): Promise<JobQueueEntry[]> {
+  return useSupabase(env) ? sb.sbEnqueueJobs(env, userId, sessionId, jobs) : mem.enqueueJobs(userId, sessionId, jobs);
 }
+export function listJobs(env: Env, sessionId: string): Promise<JobQueueEntry[]> {
+  return useSupabase(env) ? sb.sbListJobs(env, sessionId) : mem.listJobs(sessionId);
+}
+export function updateJob(env: Env, sessionId: string, jobId: string, patch: Partial<JobQueueEntry>): Promise<JobQueueEntry | null> {
+  return useSupabase(env) ? sb.sbUpdateJob(env, sessionId, jobId, patch) : mem.updateJob(sessionId, jobId, patch);
+}
+
+// Back-compat aliases
+export const lockSession = startSession;
+export const hasRunningSession = hasActiveSession;
