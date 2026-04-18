@@ -16,11 +16,11 @@ export async function handleResumesRequest(request: Request, env: Env, match: { 
 
   try {
     if (match.method === "GET" && !match.id) {
-      const resumes = await listResumes(userId);
+      const resumes = await listResumes(env, userId);
       return ok({ resumes });
     }
     if (match.method === "GET" && match.id) {
-      const r = await getResume(userId, match.id);
+      const r = await getResume(env, userId, match.id);
       if (!r) return problem({ title: "Resume not found", status: 404 });
       return ok({ resume: r });
     }
@@ -28,12 +28,14 @@ export async function handleResumesRequest(request: Request, env: Env, match: { 
       const body = await safeJson(request);
       const name = typeof body?.name === "string" && body.name.trim() ? body.name.trim() : "Untitled resume";
       const raw = typeof body?.raw_text === "string" ? body.raw_text : null;
-      const r = await createResume(userId, name, raw);
+      const storage_path = typeof body?.storage_path === "string" ? body.storage_path : null;
+      const file_type = typeof body?.file_type === "string" ? (body.file_type as "pdf" | "docx" | "txt" | "text" | "other") : null;
+      const r = await createResume(env, userId, { name, raw_text: raw, storage_path, file_type });
       return ok({ resume: r }, 201);
     }
     if (match.method === "PATCH" && match.id) {
       const body = await safeJson(request);
-      const r = await updateResume(userId, match.id, {
+      const r = await updateResume(env, userId, match.id, {
         name: typeof body?.name === "string" ? body.name : undefined,
         parsed: body && "parsed" in body ? body.parsed : undefined,
         raw_text: typeof body?.raw_text === "string" ? body.raw_text : undefined,
@@ -43,7 +45,7 @@ export async function handleResumesRequest(request: Request, env: Env, match: { 
       return ok({ resume: r });
     }
     if (match.method === "DELETE" && match.id) {
-      const ok2 = await deleteResume(userId, match.id);
+      const ok2 = await deleteResume(env, userId, match.id);
       if (!ok2) return problem({ title: "Resume not found", status: 404 });
       return ok({ deleted: true });
     }

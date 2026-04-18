@@ -1,6 +1,6 @@
 "use client";
 import { motion, useScroll, useTransform } from "framer-motion";
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 // A fixed-position scroll-reactive ambient layer that keeps the page alive between sections.
 // Dots drift, a gradient blob shifts with scroll, and a grain overlay adds editorial texture.
@@ -11,15 +11,19 @@ export function AmbientField() {
   const blobY = useTransform(scrollYProgress, [0, 1], ["-10%", "15%"]);
   const hueRotate = useTransform(scrollYProgress, [0, 1], [0, 40]);
 
+  // Defer randomness until after mount to avoid SSR/client hydration mismatch.
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
   const dots = useMemo(() => {
-    return Array.from({ length: 40 }, (_, i) => ({
+    if (!mounted) return [];
+    return Array.from({ length: 40 }, () => ({
       x: Math.random() * 100,
       y: Math.random() * 100,
       size: 1 + Math.random() * 2,
       delay: Math.random() * 4,
       duration: 4 + Math.random() * 4,
     }));
-  }, []);
+  }, [mounted]);
 
   return (
     <div aria-hidden className="pointer-events-none fixed inset-0 z-0 overflow-hidden">

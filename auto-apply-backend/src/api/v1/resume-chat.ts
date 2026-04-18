@@ -23,7 +23,7 @@ export async function handleResumeChatRequest(request: Request, env: Env): Promi
     return errorResponse("validation_error", "resume and instruction are required", 400, {}, requestId);
   }
 
-  const { data, demo } = await chatWithResume(
+  const result = await chatWithResume(
     {
       resume: parsed.data.resume,
       messages: parsed.data.messages ?? [],
@@ -32,5 +32,17 @@ export async function handleResumeChatRequest(request: Request, env: Env): Promi
     env,
   );
 
-  return jsonResponse(buildSuccessPayload({ reply: data, demo_mode: demo }, requestId));
+  return jsonResponse(
+    buildSuccessPayload(
+      {
+        reply: {
+          assistant_message: result.assistant_message,
+          updated_resume: null,
+          operations: result.operations,
+        },
+        demo_mode: result.meta.demo,
+      },
+      requestId,
+    ),
+  );
 }

@@ -10,12 +10,15 @@
     "test:watch": "vitest --configLoader native"
   },
   "dependencies": {
-    "@supabase/supabase-js": "^2.57.0",
+    "@supabase/supabase-js": "^2.103.3",
     "@upstash/redis": "^1.35.4",
+    "ai": "^6.0.168",
     "jose": "^6.2.2",
     "playwright": "^1.59.1",
     "resend": "^4.0.0",
-    "svix": "^1.90.0"
+    "svix": "^1.90.0",
+    "workers-ai-provider": "^3.1.11",
+    "zod": "^4.3.6"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20260401.0",

@@ -40,6 +40,8 @@ function Orbit() {
   const containerRef = useRef<HTMLDivElement>(null);
   const [size, setSize] = useState(560);
   const [angle, setAngle] = useState(0);
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
   const raf = useRef<number | null>(null);
   const last = useRef<number>(0);
 
@@ -81,10 +83,13 @@ function Orbit() {
   const centerBox = size < 420 ? 80 : 112;
   const centerLogo = centerBox - 56;
 
-  const planets = STACK.map((s, i) => {
-    const a = (angle + (i / STACK.length) * 360) * (Math.PI / 180);
-    return { ...s, x: center + Math.cos(a) * radius, y: center + Math.sin(a) * radius };
-  });
+  // Planets rely on animated angle; keep them empty on server render to avoid hydration drift.
+  const planets = mounted
+    ? STACK.map((s, i) => {
+        const a = (angle + (i / STACK.length) * 360) * (Math.PI / 180);
+        return { ...s, x: center + Math.cos(a) * radius, y: center + Math.sin(a) * radius };
+      })
+    : [];
 
   return (
     <div ref={containerRef} className="relative mx-auto w-full max-w-xl">

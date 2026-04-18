@@ -32,7 +32,9 @@ export function AuthForm({ mode }: { mode: Mode }) {
     startTransition(async () => {
       const { error } = await supabase.auth.signInWithOtp({
         email,
-        options: { emailRedirectTo: `${window.location.origin}${nextParam}` },
+        options: {
+          emailRedirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent(nextParam)}`,
+        },
       });
       if (error) toast.error(error.message);
       else toast.success("Check your email for a magic link.");
@@ -46,10 +48,20 @@ export function AuthForm({ mode }: { mode: Mode }) {
     }
     const supabase = getSupabaseBrowserClient();
     if (!supabase) return;
-    await supabase.auth.signInWithOAuth({
+    const { error } = await supabase.auth.signInWithOAuth({
       provider: "google",
-      options: { redirectTo: `${window.location.origin}${nextParam}` },
+      options: {
+        redirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent(nextParam)}`,
+      },
     });
+    if (error) {
+      // Most common: "Unsupported provider: provider is not enabled"
+      toast.error(
+        error.message.toLowerCase().includes("not enabled")
+          ? "Google sign-in is not set up yet. Use email magic link instead."
+          : error.message,
+      );
+    }
   }
 
   async function handleDemo() {

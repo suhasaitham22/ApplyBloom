@@ -1,11 +1,10 @@
-import { StudioShellStub } from "@/features/studio/components/studio-shell-stub";
+import { StudioShell } from "@/features/studio/components/studio-shell";
 
-// Next.js 15: params is a Promise
 export default async function StudioPage({
   params,
 }: {
   params: Promise<{ sessionId?: string[] }>;
 }) {
   const { sessionId } = await params;
-  return <StudioShellStub sessionId={sessionId?.[0] ?? null} />;
+  return <StudioShell sessionId={sessionId?.[0] ?? null} />;
 }
