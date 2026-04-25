@@ -74,7 +74,7 @@ describe("plateToResume round-trip", () => {
   it("captures edits to a bullet", () => {
     const doc = resumeToPlate(resume);
     const bulletNode = doc.find((n: { dataPath?: string }) => n.dataPath === "experience[0].bullets[1]");
-    (bulletNode as { children: { text: string }[] }).children[0].text = "•  Rewrote CI/CD 3x faster";
+    (bulletNode as { children: { text: string }[] }).children[0].text = "Rewrote CI/CD 3x faster";
     const back = plateToResume(doc, resume);
     expect(back.experience![0].bullets[1]).toBe("Rewrote CI/CD 3x faster");
     expect(back.experience![0].bullets[0]).toBe("Led API migration");

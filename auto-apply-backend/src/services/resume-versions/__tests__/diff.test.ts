@@ -5,11 +5,12 @@ import type { StructuredResume } from "@/services/structure-resume";
 const base: StructuredResume = {
   full_name: "Alice",
   headline: "Backend Engineer",
-  contact: {},
+  contact: { email: "", phone: "", location: "" },
   summary: "Seasoned engineer.",
   skills: ["TypeScript", "PostgreSQL"],
   experience: [{ heading: "Acme, SWE, 2020-2024", bullets: ["Led API migration", "Built CI/CD"] }],
   education: [],
+  confidence: 0.9,
 };
 
 describe("diffResumes", () => {

@@ -183,6 +183,10 @@ function opToToolInput(op: ResumeOp): Record<string, unknown> {
   }
 }
 
+function sanitizeBullet(s: string): string {
+  return s.replace(/^[\s]*[•\-*]\s+/, "").replace(/\s+/g, " ").trim();
+}
+
 function toolInputToOp(name: string, raw: unknown): ResumeOp | null {
   const input = raw as Record<string, unknown>;
   try {
@@ -196,13 +200,13 @@ function toolInputToOp(name: string, raw: unknown): ResumeOp | null {
         section: (input.section as "experience" | "education") ?? "experience",
         heading: String(input.heading ?? ""),
         index: Number(input.index ?? 0),
-        value: String(input.value ?? ""),
+        value: sanitizeBullet(String(input.value ?? "")),
       };
       case "add_bullet": return {
         op: "add_bullet",
         section: (input.section as "experience" | "education") ?? "experience",
         heading: String(input.heading ?? ""),
-        value: String(input.value ?? ""),
+        value: sanitizeBullet(String(input.value ?? "")),
       };
       default: return null;
     }
