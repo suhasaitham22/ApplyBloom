@@ -20,11 +20,12 @@ const mockRunChat = vi.mocked(runChat);
 const resume: StructuredResume = {
   full_name: "Uday A",
   headline: "Data Engineer",
-  contact: {},
+  contact: { email: "uday@ex.com", phone: "", location: "" },
   summary: "Data engineer specialising in Azure.",
   skills: ["Python", "Azure", "SQL"],
   experience: [{ heading: "Acme, Data Eng, 2021-2024", bullets: ["Built pipelines", "Reduced cost 30%"] }],
   education: [],
+  confidence: 0.9,
 };
 
 beforeEach(() => {

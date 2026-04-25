@@ -8,13 +8,14 @@ import {
   logAccess,
   toRedacted,
   type CredentialRecord,
+  type CredentialProvider,
 } from "../store";
 
 const env = {}; // memory mode
 const USER_A = "user-a";
 const USER_B = "user-b";
 
-function baseInput(provider = "linkedin" as const, label: string | null = null) {
+function baseInput(provider: CredentialProvider = "linkedin", label: string | null = null) {
   return {
     provider,
     label,

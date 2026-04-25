@@ -1,8 +1,17 @@
-// Convert between StructuredResume JSON and Plate Value (array of nodes).
-// Keeps JSON as the source of truth — Plate is only a rendering/editing layer.
-// Every block carries a `dataPath` so we can map Plate edits back to JSON fields.
+// Convert between StructuredResume JSON and Plate Value.
+// JSON stays the source of truth. Plate nodes carry `dataPath` so edits round-trip
+// back to precise JSON fields without losing structure.
+//
+// Custom node types we render with purpose-built renderers (preserve ATS formatting):
+//   name          — full_name (H1)
+//   headline      — target role subtitle
+//   contact       — email · phone · location row (single editable line)
+//   section-title — "Summary" / "Skills" / "Experience" / "Education" (non-editable label)
+//   summary       — summary paragraph
+//   skills        — skill chips row (comma-separated on edit)
+//   exp-heading   — experience / education section heading
+//   bullet        — bullet point (rendered as <li> in styled <ul>)
 
-import type { Descendant } from "platejs";
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 export interface StructuredResume {
@@ -16,91 +25,66 @@ export interface StructuredResume {
   confidence?: number;
 }
 
-type Mark = { bold?: true; italic?: true };
-
-type TextNode = { text: string } & Mark;
-
-interface PlateNode {
-  type?: string;
-  children: (PlateNode | TextNode)[];
-  /** Path back to the JSON field, e.g. "summary", "skills", "experience[0].bullets[2]". */
-  dataPath?: string;
-  /** Highlight the recent AI change. */
-  changed?: boolean;
+function text(s: string, marks?: { bold?: true; italic?: true }): any {
+  return { text: s, ...(marks ?? {}) };
 }
 
-/** Parse a JSON resume to a Plate document for editing. */
+/** JSON -> Plate document with dataPaths. */
 export function resumeToPlate(r: StructuredResume | null | undefined): any[] {
-  if (!r) return [{ type: "p", children: [{ text: "" }] } as PlateNode];
-  const out: PlateNode[] = [];
+  if (!r) return [{ type: "p", children: [text("")] }];
+  const out: any[] = [];
 
   if (r.full_name) {
-    out.push({ type: "h1", children: [{ text: r.full_name }], dataPath: "full_name" });
+    out.push({ type: "name", children: [text(r.full_name)], dataPath: "full_name" });
   }
   if (r.headline) {
-    out.push({ type: "h3", children: [{ text: r.headline }], dataPath: "headline" });
+    out.push({ type: "headline", children: [text(r.headline)], dataPath: "headline" });
   }
   if (r.contact && (r.contact.email || r.contact.phone || r.contact.location)) {
-    const parts = [r.contact.email, r.contact.phone, r.contact.location].filter(Boolean).join("  ·  ");
-    out.push({ type: "p", children: [{ text: parts, italic: true }], dataPath: "contact" });
+    const joined = [r.contact.email, r.contact.phone, r.contact.location].filter(Boolean).join(" · ");
+    out.push({ type: "contact", children: [text(joined)], dataPath: "contact" });
   }
 
   if (r.summary) {
-    out.push({ type: "h2", children: [{ text: "Summary" }] });
-    out.push({ type: "p", children: [{ text: r.summary }], dataPath: "summary" });
+    out.push({ type: "section-title", children: [text("Summary")] });
+    out.push({ type: "summary", children: [text(r.summary)], dataPath: "summary" });
   }
 
   if (r.skills && r.skills.length > 0) {
-    out.push({ type: "h2", children: [{ text: "Skills" }] });
-    out.push({
-      type: "p",
-      children: [{ text: r.skills.join("  ·  ") }],
-      dataPath: "skills",
-    });
+    out.push({ type: "section-title", children: [text("Skills")] });
+    out.push({ type: "skills", children: [text(r.skills.join(", "))], dataPath: "skills" });
   }
 
   if (r.experience && r.experience.length > 0) {
-    out.push({ type: "h2", children: [{ text: "Experience" }] });
+    out.push({ type: "section-title", children: [text("Experience")] });
     r.experience.forEach((sec, i) => {
-      out.push({ type: "h3", children: [{ text: sec.heading }], dataPath: `experience[${i}].heading` });
+      out.push({ type: "exp-heading", children: [text(sec.heading)], dataPath: `experience[${i}].heading` });
       sec.bullets.forEach((b, j) => {
-        out.push({
-          type: "p",
-          children: [{ text: `•  ${b}` }],
-          dataPath: `experience[${i}].bullets[${j}]`,
-        });
+        out.push({ type: "bullet", children: [text(b)], dataPath: `experience[${i}].bullets[${j}]` });
       });
     });
   }
 
   if (r.education && r.education.length > 0) {
-    out.push({ type: "h2", children: [{ text: "Education" }] });
+    out.push({ type: "section-title", children: [text("Education")] });
     r.education.forEach((sec, i) => {
-      out.push({ type: "h3", children: [{ text: sec.heading }], dataPath: `education[${i}].heading` });
+      out.push({ type: "exp-heading", children: [text(sec.heading)], dataPath: `education[${i}].heading` });
       sec.bullets.forEach((b, j) => {
-        out.push({
-          type: "p",
-          children: [{ text: `•  ${b}` }],
-          dataPath: `education[${i}].bullets[${j}]`,
-        });
+        out.push({ type: "bullet", children: [text(b)], dataPath: `education[${i}].bullets[${j}]` });
       });
     });
   }
 
-  if (out.length === 0) out.push({ type: "p", children: [{ text: "" }] });
-  return out as Descendant[];
+  if (out.length === 0) out.push({ type: "p", children: [text("")] });
+  return out;
 }
 
-function extractText(n: PlateNode | TextNode): string {
-  if ("text" in n) return n.text;
-  return (n.children || []).map(extractText).join("");
+function extractText(n: any): string {
+  if (typeof n?.text === "string") return n.text;
+  return (n.children ?? []).map(extractText).join("");
 }
 
-function stripBullet(s: string): string {
-  return s.replace(/^•\s+/, "").trim();
-}
-
-/** Serialize Plate document back to StructuredResume. */
+/** Plate document -> JSON. Uses `base` to fill fields we don't edit in-place. */
 export function plateToResume(nodes: any[], base: StructuredResume): StructuredResume {
   const out: StructuredResume = {
     ...base,
@@ -109,18 +93,18 @@ export function plateToResume(nodes: any[], base: StructuredResume): StructuredR
     education: base.education ? JSON.parse(JSON.stringify(base.education)) : [],
   };
 
-  for (const rawNode of nodes) {
-    const n = rawNode as PlateNode;
-    const text = extractText(n).trim();
-    const dp = n.dataPath;
+  for (const n of nodes) {
+    const dp = n?.dataPath as string | undefined;
     if (!dp) continue;
+    const t = extractText(n).trim();
 
-    if (dp === "full_name") out.full_name = text;
-    else if (dp === "headline") out.headline = text;
-    else if (dp === "summary") out.summary = text;
-    else if (dp === "skills") out.skills = text.split(/\s*·\s*|,\s*/).map((s) => s.trim()).filter(Boolean);
+    if (dp === "full_name") out.full_name = t;
+    else if (dp === "headline") out.headline = t;
+    else if (dp === "summary") out.summary = t;
+    else if (dp === "skills") out.skills = t.split(/\s*,\s*|\s*·\s*/).map((s) => s.trim()).filter(Boolean);
     else if (dp === "contact") {
-      // contact is display-only — skip round-trip (avoid lossy parsing).
+      // Display-only. Parsing free text back into {email, phone, location} is lossy —
+      // we preserve the base contact object to avoid data loss.
     } else {
       const m = dp.match(/^(experience|education)\[(\d+)\]\.(heading|bullets\[(\d+)\])$/);
       if (m) {
@@ -128,10 +112,10 @@ export function plateToResume(nodes: any[], base: StructuredResume): StructuredR
         const i = Number(m[2]);
         const arr = out[section]!;
         if (!arr[i]) arr[i] = { heading: "", bullets: [] };
-        if (m[3] === "heading") arr[i].heading = text;
+        if (m[3] === "heading") arr[i].heading = t;
         else {
           const j = Number(m[4]);
-          arr[i].bullets[j] = stripBullet(text);
+          arr[i].bullets[j] = t;
         }
       }
     }
@@ -139,12 +123,17 @@ export function plateToResume(nodes: any[], base: StructuredResume): StructuredR
   return out;
 }
 
-/** Mark a Plate document's nodes as `changed` based on paths. */
+/** Tag nodes whose dataPath matches the given set — UI renders amber highlight. */
 export function markChangedPaths(doc: any[], paths: Set<string>): any[] {
-  return doc.map((raw) => {
-    const n = raw as PlateNode;
-    if (!n.dataPath) return n as Descendant;
-    const hit = Array.from(paths).some((p) => n.dataPath === p || (n.dataPath ?? "").startsWith(p));
-    return hit ? ({ ...n, changed: true } as Descendant) : (n as Descendant);
+  if (paths.size === 0) return doc;
+  return doc.map((n) => {
+    const dp: string | undefined = n?.dataPath;
+    if (!dp) return n;
+    for (const p of paths) {
+      if (dp === p || dp.startsWith(p + ".") || dp.startsWith(p + "[")) {
+        return { ...n, changed: true };
+      }
+    }
+    return n;
   });
 }
