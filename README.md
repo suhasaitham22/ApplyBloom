@@ -9,6 +9,10 @@ ApplyBloom is an AI-assisted job application platform split into two codebases:
 - `auto-apply-frontend` (Next.js web app)
 - `auto-apply-backend` (Cloudflare Worker API and async processors)
 
+## Current auto-apply plan (source of truth)
+
+**→ [`docs/auto-apply/`](./docs/auto-apply/)** — Architecture, phased delivery plan, decisions, and references for the AI-driven auto-apply pipeline. Read this first before touching any auto-apply code.
+
 ## Product workflows
 
 - Auto-apply mode: upload resume, discover matching jobs, and queue apply actions.
