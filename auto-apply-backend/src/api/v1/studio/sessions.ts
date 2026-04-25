@@ -19,6 +19,8 @@ import {
 import { structureResume, type StructuredResume } from "@/services/structure-resume";
 import { tailorResumeForJob } from "@/services/tailor-resume-llm";
 import { chatWithResume, chatWithoutResume, applyOperations } from "@/services/chat-with-resume";
+import { createVersion } from "@/services/resume-versions/store";
+import { diffResumes, summariseDiff } from "@/services/resume-versions/diff";
 
 type Route =
   | { kind: "list"; method: "GET" | "POST" }
@@ -142,6 +144,7 @@ export async function handleSessionsRequest(request: Request, env: Env, route: R
 
           // Apply operations to the resume and persist
           const createdMsgs: Array<Awaited<ReturnType<typeof appendMessage>>> = [];
+          let newVersion: Awaited<ReturnType<typeof createVersion>> | null = null;
           if (chat.operations.length > 0 && resumeRecord) {
             const updated = applyOperations(resume, chat.operations);
             await updateResume(env, userId, resumeRecord.id, { parsed: updated });
@@ -156,6 +159,22 @@ export async function handleSessionsRequest(request: Request, env: Env, route: R
               });
               createdMsgs.push(actionMsg);
             }
+            // Save a resume-version snapshot so the user can see and roll back AI edits.
+            try {
+              const d = diffResumes(resume, updated);
+              newVersion = await createVersion(env, {
+                resume_id: resumeRecord.id,
+                user_id: userId,
+                parsed: updated,
+                raw_text: resumeRecord.raw_text,
+                created_by: "ai",
+                change_summary: summariseDiff(d),
+                ops: chat.operations,
+                message_id: null,
+              });
+            } catch (verr) {
+              console.warn("[chat] resume-version snapshot failed:", verr instanceof Error ? verr.message : verr);
+            }
           }
 
           const assistantMsg = await appendMessage(env, userId, route.id, {
@@ -167,8 +186,9 @@ export async function handleSessionsRequest(request: Request, env: Env, route: R
             tokens_input: chat.meta.tokens_input,
             tokens_output: chat.meta.tokens_output,
             latency_ms: chat.meta.latency_ms,
+            metadata: newVersion ? { resume_version_id: newVersion.id, resume_version: newVersion.version } : {},
           });
-          return ok({ messages: [m, ...createdMsgs, assistantMsg] }, 201);
+          return ok({ messages: [m, ...createdMsgs, assistantMsg], resume_version: newVersion }, 201);
         }
         break;
       }
