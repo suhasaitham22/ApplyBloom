@@ -1,5 +1,17 @@
 # Implementation Phases
 
+> **⚠ Partially superseded.** The auto-apply pipeline is now documented in
+> [`./auto-apply/`](./auto-apply/) — use that as the source of truth for job
+> discovery, matching, tailoring, and browser automation.
+>
+> The docs below remain relevant for product modes, naming conventions, storage,
+> and testing strategy. They are NOT deleted but should be read alongside
+> `docs/auto-apply/`.
+
+---
+
+
+
 This is the execution map for the project. Each phase is designed to reuse existing repositories and managed services instead of introducing custom infrastructure unless necessary.
 
 ## Files
