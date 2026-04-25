@@ -20,6 +20,8 @@ import { extractResumeText } from "@/features/studio/lib/extract-resume-text";
 import { Upload, FileUp } from "lucide-react";
 import { SessionSidebar } from "@/features/studio/components/session-sidebar";
 import { ResumeVersionHistory } from "@/features/studio/components/resume-version-history";
+import { ResumeEditor } from "@/features/studio/components/resume-editor";
+import { opsToChangedPaths, type ResumeOp } from "@/features/studio/lib/op-to-paths";
 
 interface Props { sessionId: string | null; }
 
@@ -42,6 +44,8 @@ export function StudioShell({ sessionId: initialSessionId }: Props) {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [versionRefresh, setVersionRefresh] = useState(0);
   const [recentAiDiff, setRecentAiDiff] = useState<{ at: number } | null>(null);
+  const [recentChangedPaths, setRecentChangedPaths] = useState<string[]>([]);
+  const [lastDiffSummary, setLastDiffSummary] = useState<string | null>(null);
   const chatScroll = useRef<HTMLDivElement>(null);
   const bootstrapRan = useRef(false);
 
@@ -278,7 +282,19 @@ export function StudioShell({ sessionId: initialSessionId }: Props) {
           const all = await listResumes();
           setResumes(all.resumes);
         } catch { /* non-fatal */ }
-        // Trigger version-history reload + flash AI changes
+        // Build changed-paths set from the action messages for precise highlighting
+        const ops = newMsgs
+          .filter((m) => m.role === "action" && m.action_payload)
+          .map((m) => m.action_payload as ResumeOp);
+        if (ops.length > 0) {
+          const before = (activeResume?.parsed as { experience?: Array<{ heading: string }>; education?: Array<{ heading: string }> } | null) ?? {};
+          const paths = opsToChangedPaths(ops, before);
+          setRecentChangedPaths(paths);
+          const summary = describeOpsShort(ops);
+          setLastDiffSummary(summary);
+          // Fade highlights after 6s
+          setTimeout(() => setRecentChangedPaths([]), 6000);
+        }
         setVersionRefresh((n) => n + 1);
         setRecentAiDiff({ at: Date.now() });
         setTimeout(() => setRecentAiDiff(null), 4000);
@@ -441,10 +457,18 @@ export function StudioShell({ sessionId: initialSessionId }: Props) {
             {activeResume ? (
               <div className="space-y-6">
                 <div className={recentAiDiff ? "ring-2 ring-[hsl(var(--brand-amber))] rounded-lg transition-all" : ""}>
-                  <ResumeView resume={activeResume} onRename={async (name) => {
-                    const { resume } = await updateResume(activeResume.id, { name });
-                    setResumes((p) => p.map((x) => (x.id === resume.id ? resume : x)));
-                  }} />
+                  <ResumeEditor
+                    resumeId={activeResume.id}
+                    parsed={(activeResume.parsed as import("@/features/studio/lib/resume-plate").StructuredResume) ?? {}}
+                    recentChangedPaths={recentChangedPaths}
+                    diffSummary={lastDiffSummary}
+                    readOnly={locked}
+                    onSave={async (next) => {
+                      const { resume } = await updateResume(activeResume.id, { parsed: next });
+                      setResumes((p) => p.map((x) => (x.id === resume.id ? resume : x)));
+                      setVersionRefresh((n) => n + 1); // backend writes a new version on PATCH
+                    }}
+                  />
                 </div>
                 <div className="rounded-lg border border-border bg-background p-4">
                   <ResumeVersionHistory
@@ -1093,4 +1117,18 @@ function JobAttachForm({ onSubmit, onCancel }: { onSubmit: (job: { title: string
       </div>
     </div>
   );
+}
+
+
+function describeOpsShort(ops: ResumeOp[]): string {
+  const parts: string[] = [];
+  const skillsAdded = ops.filter((o) => o.op === "add_skills").flatMap((o) => o.value);
+  const skillsRemoved = ops.filter((o) => o.op === "remove_skills").flatMap((o) => o.value);
+  if (skillsAdded.length > 0) parts.push(`+${skillsAdded.length} skill${skillsAdded.length === 1 ? "" : "s"} (${skillsAdded.slice(0, 3).join(", ")}${skillsAdded.length > 3 ? "…" : ""})`);
+  if (skillsRemoved.length > 0) parts.push(`-${skillsRemoved.length} skill${skillsRemoved.length === 1 ? "" : "s"}`);
+  if (ops.some((o) => o.op === "replace_summary")) parts.push("summary rewritten");
+  if (ops.some((o) => o.op === "replace_headline")) parts.push("headline updated");
+  const bullets = ops.filter((o) => o.op === "rewrite_bullet" || o.op === "add_bullet").length;
+  if (bullets > 0) parts.push(`${bullets} bullet${bullets === 1 ? "" : "s"}`);
+  return parts.join(" · ");
 }
