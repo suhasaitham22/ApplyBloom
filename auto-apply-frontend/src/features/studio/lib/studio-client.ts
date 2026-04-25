@@ -212,3 +212,96 @@ export const restoreResumeVersion = (resumeId: string, version: number) =>
     `/api/v1/resumes/${resumeId}/versions/${version}/restore`,
     { method: "POST" },
   );
+
+
+// ── Phase A: user profile ─────────────────────────────────────────────────
+export type WorkAuth =
+  | "citizen" | "green_card" | "h1b" | "opt" | "stem_opt" | "needs_sponsorship" | "other";
+
+export interface UserProfilePublic {
+  id: string;
+  user_id: string;
+  legal_first_name: string | null;
+  legal_last_name: string | null;
+  email: string | null;
+  phone: string | null;
+  location: string | null;
+  work_authorization: WorkAuth | null;
+  visa_sponsorship_needed: boolean | null;
+  relocation_ok: boolean | null;
+  earliest_start_date: string | null;
+  notice_period_weeks: number | null;
+  salary_min: number | null;
+  salary_max: number | null;
+  linkedin_url: string | null;
+  portfolio_url: string | null;
+  github_url: string | null;
+  has_eeo: boolean;
+  completed_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export type UserProfilePatch = Partial<
+  Omit<UserProfilePublic, "id" | "user_id" | "has_eeo" | "completed_at" | "created_at" | "updated_at">
+> & {
+  // plaintext — backend encrypts these server-side
+  eeo_gender?: string | null;
+  eeo_race?: string | null;
+  eeo_veteran?: string | null;
+  eeo_disability?: string | null;
+};
+
+export const getProfile = () =>
+  call<{ profile: UserProfilePublic | null; complete: boolean; required_fields: string[] }>(
+    "/api/v1/profile",
+  );
+
+export const saveProfile = (patch: UserProfilePatch) =>
+  call<{ profile: UserProfilePublic; complete: boolean }>("/api/v1/profile", {
+    method: "PUT", body: JSON.stringify(patch),
+  });
+
+// ── Phase A: Q&A memory ───────────────────────────────────────────────────
+export type QAQuestionType =
+  | "short_text" | "long_text" | "single_choice" | "multi_choice"
+  | "boolean" | "number" | "url" | "date" | "file";
+
+export interface QAMemoryItem {
+  id: string;
+  user_id: string;
+  question_text: string;
+  question_normalized: string;
+  answer: string;
+  question_type: QAQuestionType | null;
+  source: "user" | "inferred_from_profile" | "imported" | null;
+  times_used: number;
+  last_used_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface QAMatch {
+  record: QAMemoryItem;
+  similarity: number;
+  verdict: "auto" | "suggest" | "ask";
+}
+
+export const listQAMemory = () =>
+  call<{ items: QAMemoryItem[] }>("/api/v1/qa-memory");
+
+export const upsertQAMemory = (input: {
+  question_text: string;
+  answer: string;
+  question_type?: QAQuestionType;
+}) => call<{ item: QAMemoryItem }>("/api/v1/qa-memory", {
+  method: "POST", body: JSON.stringify(input),
+});
+
+export const matchQAMemory = (question_text: string) =>
+  call<{ match: QAMatch | null }>("/api/v1/qa-memory/match", {
+    method: "POST", body: JSON.stringify({ question_text }),
+  });
+
+export const deleteQAMemory = (id: string) =>
+  call<{ deleted: true }>(`/api/v1/qa-memory/${id}`, { method: "DELETE" });
