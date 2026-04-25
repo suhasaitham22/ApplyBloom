@@ -55,7 +55,7 @@ describe("SessionSidebar", () => {
 
   it("calls onCreate when New session clicked", () => {
     render(<SessionSidebar {...baseProps} />);
-    fireEvent.click(screen.getByText("New session"));
+    fireEvent.click(screen.getByRole("button", { name: /New session/i }));
     expect(baseProps.onCreate).toHaveBeenCalled();
   });
 

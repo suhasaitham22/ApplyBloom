@@ -9,6 +9,7 @@ import { handleResumesRequest } from "@/api/v1/studio/resumes";
 import { handleSessionsRequest } from "@/api/v1/studio/sessions";
 import { handleUploadResumeRequest } from "@/api/v1/studio/upload-resume";
 import { handleCredentialsRequest } from "@/api/v1/credentials";
+import { handleResumeVersionsRequest } from "@/api/v1/resume-versions";
 import { dispatchQueueMessage } from "@/workers/dispatch-queue-message";
 
 function corsHeaders(origin: string | null): Record<string, string> {
@@ -53,6 +54,19 @@ export default {
       if (m === "POST" && p === "/api/v1/resumes/upload") return handleUploadResumeRequest(request, env);
       if (p === "/api/v1/resumes") {
         if (m === "GET" || m === "POST") return handleResumesRequest(request, env, { method: m });
+      }
+      // Resume versions: list / detail / restore — must be matched BEFORE the generic /resumes/:id
+      const versionsListMatch = p.match(/^\/api\/v1\/resumes\/([^/]+)\/versions$/);
+      if (versionsListMatch && m === "GET") {
+        return handleResumeVersionsRequest(request, env, { kind: "list", resumeId: versionsListMatch[1] });
+      }
+      const versionDetailMatch = p.match(/^\/api\/v1\/resumes\/([^/]+)\/versions\/(\d+)$/);
+      if (versionDetailMatch && m === "GET") {
+        return handleResumeVersionsRequest(request, env, { kind: "detail", resumeId: versionDetailMatch[1], version: Number(versionDetailMatch[2]) });
+      }
+      const versionRestoreMatch = p.match(/^\/api\/v1\/resumes\/([^/]+)\/versions\/(\d+)\/restore$/);
+      if (versionRestoreMatch && m === "POST") {
+        return handleResumeVersionsRequest(request, env, { kind: "restore", resumeId: versionRestoreMatch[1], version: Number(versionRestoreMatch[2]) });
       }
       const resumeMatch = p.match(/^\/api\/v1\/resumes\/([^/]+)$/);
       if (resumeMatch) {

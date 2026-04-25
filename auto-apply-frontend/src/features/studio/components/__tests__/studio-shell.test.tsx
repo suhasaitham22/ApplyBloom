@@ -106,7 +106,8 @@ describe("StudioShell", () => {
     render(<mod.StudioShell sessionId="s1" />);
     
     await waitFor(() => {
-      expect(screen.getByText("Resume")).toBeInTheDocument();
+      // Resume appears in the tab AND in the context strip ("AI sees: Resume").
+      expect(screen.getAllByText("Resume").length).toBeGreaterThan(0);
     }, { timeout: 3000 });
   });
 });

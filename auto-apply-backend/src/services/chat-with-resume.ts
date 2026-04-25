@@ -136,11 +136,35 @@ export async function chatWithResume(
     .map((tc) => toolInputToOp(tc.toolName, tc.input))
     .filter((o): o is ResumeOp => o !== null);
 
+  // Llama-family models on Workers AI often return tool calls with NO accompanying text.
+  // Synthesise a plain-English confirmation so the user sees what changed.
+  const finalText = text?.trim() || synthesiseToolSummary(operations);
+
   return {
-    assistant_message: text || "(no response)",
+    assistant_message: finalText,
     operations,
     meta,
   };
+}
+
+function synthesiseToolSummary(ops: ResumeOp[]): string {
+  if (ops.length === 0) {
+    return "I heard you, but didn't have anything specific to change. Try: 'tighten my summary', 'add Python to skills', or 'rewrite my Acme bullets'.";
+  }
+  const parts: string[] = [];
+  for (const op of ops) {
+    switch (op.op) {
+      case "replace_summary": parts.push("rewrote your professional summary"); break;
+      case "replace_headline": parts.push(`set your headline to "${op.value}"`); break;
+      case "add_skills": parts.push(`added ${op.value.length} skill${op.value.length === 1 ? "" : "s"}: ${op.value.join(", ")}`); break;
+      case "remove_skills": parts.push(`removed ${op.value.length} skill${op.value.length === 1 ? "" : "s"}: ${op.value.join(", ")}`); break;
+      case "set_skills": parts.push(`set your skills list (${op.value.length} items)`); break;
+      case "rewrite_bullet": parts.push(`rewrote a bullet at ${op.heading.split(",")[0]}`); break;
+      case "add_bullet": parts.push(`added a bullet to ${op.heading.split(",")[0]}`); break;
+    }
+  }
+  const head = parts.length === 1 ? `Done — ${parts[0]}.` : `Done — ${parts.slice(0, -1).join(", ")}, and ${parts[parts.length - 1]}.`;
+  return head + " Check the preview on the left; say 'undo' if you want to roll back.";
 }
 
 function opToToolInput(op: ResumeOp): Record<string, unknown> {
