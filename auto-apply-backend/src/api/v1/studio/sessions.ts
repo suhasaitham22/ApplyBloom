@@ -21,6 +21,7 @@ import { tailorResumeForJob } from "@/services/tailor-resume-llm";
 import { chatWithResume, chatWithoutResume, applyOperations } from "@/services/chat-with-resume";
 import { createVersion } from "@/services/resume-versions/store";
 import { diffResumes, summariseDiff } from "@/services/resume-versions/diff";
+import { getProfile, isProfileComplete } from "@/services/user-profile/store";
 
 type Route =
   | { kind: "list"; method: "GET" | "POST" }
@@ -195,6 +196,19 @@ export async function handleSessionsRequest(request: Request, env: Env, route: R
 
       case "lock":
       case "start": {
+        const current = await getSession(env, userId, route.id);
+        if (!current) return problem({ title: "Session not found", status: 404 });
+        if (current.mode === "auto") {
+          const profile = await getProfile(env, userId);
+          if (!isProfileComplete(profile)) {
+            return problem({
+              title: "Profile incomplete",
+              status: 409,
+              code: "profile_incomplete",
+              detail: "Complete the onboarding profile before starting an auto-apply session.",
+            });
+          }
+        }
         const s = await startSession(env, userId, route.id);
         if (!s) return problem({ title: "Session not found", status: 404 });
         return ok({ session: s });
