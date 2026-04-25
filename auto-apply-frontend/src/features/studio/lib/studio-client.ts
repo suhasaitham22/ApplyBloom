@@ -121,3 +121,60 @@ export async function uploadResumeFile(opts: { file: File; name?: string; replac
   if (!res.ok) throw new Error((data as { title?: string; detail?: string })?.detail ?? (data as { title?: string })?.title ?? `HTTP ${res.status}`);
   return (data as { data: { resume: Resume; storage: { storage_path: string; url: string; bytes: number; file_type: string } } }).data;
 }
+
+
+// ── Credentials vault ─────────────────────────────────────────────────
+export type CredentialProvider =
+  | "linkedin" | "indeed" | "greenhouse" | "lever"
+  | "workday" | "wellfound" | "generic" | "other";
+
+export interface RedactedCredential {
+  id: string;
+  provider: CredentialProvider;
+  label: string | null;
+  username_masked: string;
+  has_password: boolean;
+  has_extra: boolean;
+  last_used_at: string | null;
+  usage_count: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface FullCredential extends RedactedCredential {
+  username: string;
+  password: string;
+  extra: Record<string, unknown> | null;
+}
+
+export const listCredentials = () =>
+  call<{ credentials: RedactedCredential[] }>("/api/v1/credentials");
+
+export const createCredential = (input: {
+  provider: CredentialProvider;
+  label?: string | null;
+  username: string;
+  password: string;
+  extra?: Record<string, unknown> | null;
+}) => call<{ credential: RedactedCredential }>("/api/v1/credentials", {
+  method: "POST", body: JSON.stringify(input),
+});
+
+export const getCredential = (id: string) =>
+  call<{ credential: RedactedCredential }>(`/api/v1/credentials/${id}`);
+
+/** Reveals plaintext — AUDITED. Use only when user explicitly clicks "Reveal". */
+export const revealCredential = (id: string) =>
+  call<{ credential: FullCredential; revealed: true }>(`/api/v1/credentials/${id}?reveal=true`);
+
+export const updateCredential = (id: string, patch: {
+  label?: string | null;
+  username?: string;
+  password?: string;
+  extra?: Record<string, unknown> | null;
+}) => call<{ credential: RedactedCredential }>(`/api/v1/credentials/${id}`, {
+  method: "PATCH", body: JSON.stringify(patch),
+});
+
+export const deleteCredential = (id: string) =>
+  call<{ deleted: true }>(`/api/v1/credentials/${id}`, { method: "DELETE" });

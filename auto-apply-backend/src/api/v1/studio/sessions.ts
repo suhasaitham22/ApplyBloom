@@ -231,14 +231,47 @@ export async function handleSessionsRequest(request: Request, env: Env, route: R
       case "apply": {
         let s = await startSession(env, userId, route.id);
         if (!s) return problem({ title: "Session not found", status: 404 });
+        if (!s.job || !s.job.url) {
+          return problem({ title: "Cannot apply", status: 400, detail: "Session has no job URL" });
+        }
+
+        const applyMessage = {
+          type: "apply_job" as const,
+          user_id: userId,
+          job_id: route.id,                    // session id is the job context here
+          resume_artifact_id: s.tailored_resume_id ?? s.resume_id ?? "",
+          session_id: route.id,
+          credential_id: (s as { credential_id?: string | null }).credential_id ?? null,
+          job: s.job,
+          apply_mode: "auto_apply" as const,
+          request_id: request.headers.get("x-request-id") ?? crypto.randomUUID(),
+        };
+
+        const queue = (env as { APPLY_QUEUE?: { send: (m: unknown) => Promise<void> } }).APPLY_QUEUE;
+        const immediate = (env as { DEV_IMMEDIATE_QUEUE_PROCESSING?: string }).DEV_IMMEDIATE_QUEUE_PROCESSING === "true";
+
+        if (queue && !immediate) {
+          await queue.send(applyMessage);
+          await appendMessage(env, userId, route.id, {
+            role: "action",
+            content: "Application queued",
+            action_type: "application_queued",
+            action_payload: { job: s.job },
+          }, { bypassLock: true });
+          return ok({ queued: true, session: s });
+        }
+
+        // Dev fallback: process synchronously so E2E tests see the result
+        const { processApplyJob } = await import("@/workers/process-apply-job");
+        const result = await processApplyJob(applyMessage, env as Parameters<typeof processApplyJob>[1]);
         await appendMessage(env, userId, route.id, {
           role: "action",
-          content: "Application submitted",
-          action_type: "application_submitted",
-          action_payload: { job: s.job },
+          content: result.submitted ? "Application submitted" : "Application planned",
+          action_type: result.submitted ? "application_submitted" : "application_planned",
+          action_payload: { job: s.job, result },
         }, { bypassLock: true });
         s = await completeSession(env, userId, route.id);
-        return ok({ submitted: true, session: s });
+        return ok({ submitted: result.submitted, result, session: s });
       }
     }
     return problem({ title: "Method not allowed", status: 405 });

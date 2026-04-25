@@ -8,6 +8,8 @@ import { handleTailorResumeRequest } from "@/api/v1/tailor-resume";
 import { handleResumesRequest } from "@/api/v1/studio/resumes";
 import { handleSessionsRequest } from "@/api/v1/studio/sessions";
 import { handleUploadResumeRequest } from "@/api/v1/studio/upload-resume";
+import { handleCredentialsRequest } from "@/api/v1/credentials";
+import { dispatchQueueMessage } from "@/workers/dispatch-queue-message";
 
 function corsHeaders(origin: string | null): Record<string, string> {
   return {
@@ -87,6 +89,16 @@ export default {
           return handleSessionsRequest(request, env, { kind: "apply", method: "POST", id });
         }
       }
+      // Credentials vault
+      if (p === "/api/v1/credentials") {
+        if (m === "GET" || m === "POST") return handleCredentialsRequest(request, env, { kind: "list", method: m });
+      }
+      const credMatch = p.match(/^\/api\/v1\/credentials\/([^/]+)$/);
+      if (credMatch) {
+        if (m === "GET" || m === "PATCH" || m === "DELETE") {
+          return handleCredentialsRequest(request, env, { kind: "detail", method: m, id: credMatch[1] });
+        }
+      }
 
       return new Response(
         JSON.stringify({ title: "Not found", status: 404, detail: `No route for ${m} ${p}` }),
@@ -95,5 +107,17 @@ export default {
     };
 
     return withCors(await route(), origin);
+  },
+
+  async queue(batch: MessageBatch<unknown>, env: Env): Promise<void> {
+    for (const msg of batch.messages) {
+      try {
+        await dispatchQueueMessage(msg.body as Parameters<typeof dispatchQueueMessage>[0], env);
+        msg.ack();
+      } catch (err) {
+        console.error("[queue] message failed:", err);
+        msg.retry();
+      }
+    }
   },
 } satisfies ExportedHandler<Env>;
