@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect, useMemo } from "react";
-import { Plus, MoreHorizontal, FileText, Zap, Pause, Play, X, Edit2, Check } from "lucide-react";
+import { Plus, MoreHorizontal, FileText, Zap, Pause, Play, X, Edit2, Check, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { ChatSession } from "@/features/studio/lib/studio-client";
 
@@ -23,7 +23,18 @@ export function SessionSidebar({
   sessions, activeSessionId, onSelect, onCreate, onRename, onPause, onResume, onCancel, blockedBy,
   mode, onModeChange,
 }: Props) {
-  const groups = useMemo(() => groupSessions(sessions), [sessions]);
+  const [query, setQuery] = useState("");
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return sessions;
+    return sessions.filter((s) => {
+      if (s.title.toLowerCase().includes(q)) return true;
+      if (s.job?.title?.toLowerCase().includes(q)) return true;
+      if (s.job?.company?.toLowerCase().includes(q)) return true;
+      return false;
+    });
+  }, [sessions, query]);
+  const groups = useMemo(() => groupSessions(filtered), [filtered]);
 
   return (
     <aside className="flex flex-col border-r border-border/60 bg-background">
@@ -67,11 +78,36 @@ export function SessionSidebar({
         )}
       </div>
 
+      {/* History header with search + count */}
+      <div className="border-b border-border/60 px-3 py-2">
+        <div className="mb-1.5 flex items-center justify-between">
+          <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+            History
+          </p>
+          <span className="text-[10px] text-muted-foreground tabular-nums">
+            {filtered.length}{query && filtered.length !== sessions.length ? `/${sessions.length}` : ""}
+          </span>
+        </div>
+        <div className="relative">
+          <Search className="pointer-events-none absolute left-2 top-1/2 h-3 w-3 -translate-y-1/2 text-muted-foreground" />
+          <input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Search sessions…"
+            className="w-full rounded-md border border-border bg-background py-1 pl-7 pr-2 text-xs outline-none focus:border-[hsl(var(--brand-navy)/0.5)]"
+          />
+        </div>
+      </div>
+
       {/* Sessions grouped by bucket */}
       <div className="flex-1 overflow-y-auto p-2">
         {sessions.length === 0 ? (
           <p className="px-3 py-8 text-center text-xs text-muted-foreground">
-            No sessions yet — click "New session" to begin.
+            No sessions yet — click <strong>New session</strong> to begin.
+          </p>
+        ) : filtered.length === 0 ? (
+          <p className="px-3 py-8 text-center text-xs text-muted-foreground">
+            No matches for "<span className="text-foreground">{query}</span>".
           </p>
         ) : (
           <>

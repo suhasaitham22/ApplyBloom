@@ -178,3 +178,37 @@ export const updateCredential = (id: string, patch: {
 
 export const deleteCredential = (id: string) =>
   call<{ deleted: true }>(`/api/v1/credentials/${id}`, { method: "DELETE" });
+
+// Resume versions
+export interface ResumeVersion {
+  id: string;
+  resume_id: string;
+  user_id: string;
+  version: number;
+  parsed: unknown;
+  raw_text: string | null;
+  created_at: string;
+  created_by: "user" | "ai" | "import" | "system";
+  change_summary: string | null;
+  ops: unknown;
+  message_id: string | null;
+  diff?: ResumeDiff[];
+  diff_summary?: string;
+}
+
+export type ResumeDiff =
+  | { path: "full_name" | "headline" | "summary"; kind: "modified" | "added" | "removed"; before?: string; after?: string }
+  | { path: "skills"; kind: "added" | "removed"; value: string }
+  | { path: string; kind: "modified" | "added" | "removed"; heading: string; index: number; before?: string; after?: string };
+
+export const listResumeVersions = (resumeId: string) =>
+  call<{ versions: ResumeVersion[] }>(`/api/v1/resumes/${resumeId}/versions`);
+
+export const getResumeVersion = (resumeId: string, version: number) =>
+  call<{ version: ResumeVersion }>(`/api/v1/resumes/${resumeId}/versions/${version}`);
+
+export const restoreResumeVersion = (resumeId: string, version: number) =>
+  call<{ resume: Resume; version: ResumeVersion; diff: ResumeDiff[] }>(
+    `/api/v1/resumes/${resumeId}/versions/${version}/restore`,
+    { method: "POST" },
+  );

@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Plus, MessageSquare, FileText, Zap, User, Send, Loader2, Link2, CheckCircle2, Sparkles, ArrowLeft } from "lucide-react";
+import { Plus, MessageSquare, FileText, Zap, User, Send, Loader2, Link2, CheckCircle2, Sparkles, ArrowLeft, PanelLeft, PanelLeftClose } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -19,12 +19,11 @@ import {
 import { extractResumeText } from "@/features/studio/lib/extract-resume-text";
 import { Upload, FileUp } from "lucide-react";
 import { SessionSidebar } from "@/features/studio/components/session-sidebar";
+import { ResumeVersionHistory } from "@/features/studio/components/resume-version-history";
 
 interface Props { sessionId: string | null; }
 
-// Module-level guard: survives React StrictMode unmount/remount in dev.
-// Ensures we bootstrap exactly once per full page load.
-let studioBootstrapRan = false;
+const LAST_SESSION_KEY = "applybloom:last-session-id";
 
 export function StudioShell({ sessionId: initialSessionId }: Props) {
   const router = useRouter();
@@ -40,13 +39,17 @@ export function StudioShell({ sessionId: initialSessionId }: Props) {
   const [sending, setSending] = useState(false);
   const [showAddResume, setShowAddResume] = useState(false);
   const [showJobPanel, setShowJobPanel] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [versionRefresh, setVersionRefresh] = useState(0);
+  const [recentAiDiff, setRecentAiDiff] = useState<{ at: number } | null>(null);
   const chatScroll = useRef<HTMLDivElement>(null);
+  const bootstrapRan = useRef(false);
 
-  // Bootstrap: load resumes & sessions, create empty session if none.
-  // Module-level flag survives StrictMode unmount/remount (useRef does not).
+  // Bootstrap: load resumes & sessions, resolve target session.
+  // Priority: URL param → localStorage last-viewed → most recent → create new.
   useEffect(() => {
-    if (studioBootstrapRan) return;
-    studioBootstrapRan = true;
+    if (bootstrapRan.current) return;
+    bootstrapRan.current = true;
     (async () => {
       try {
         const [{ resumes: rs }, { sessions: ss }] = await Promise.all([listResumes(), listSessions()]);
@@ -54,19 +57,25 @@ export function StudioShell({ sessionId: initialSessionId }: Props) {
         setSessions(ss);
         setActiveResumeId(rs.find((r) => r.is_base)?.id ?? rs[0]?.id ?? null);
 
-        // Resolve target session: URL param → first existing → create new
         let targetId: string | null = null;
+        let lastId: string | null = null;
+        try { lastId = typeof window !== "undefined" ? (window.localStorage?.getItem(LAST_SESSION_KEY) ?? null) : null; } catch { lastId = null; }
+
         if (initialSessionId && ss.some((s) => s.id === initialSessionId)) {
           targetId = initialSessionId;
+        } else if (lastId && ss.some((s) => s.id === lastId)) {
+          targetId = lastId;
         } else if (ss.length > 0) {
-          targetId = ss[0].id;
+          // Most recent by updated_at
+          const sorted = [...ss].sort((a, b) => (a.updated_at < b.updated_at ? 1 : -1));
+          targetId = sorted[0].id;
         } else {
           const { session: s } = await createSession({ title: "New session", mode: "single" });
           targetId = s.id;
           setSessions([s]);
         }
         setActiveSessionId(targetId);
-        if (targetId !== initialSessionId) router.replace(`/studio/${targetId}`);
+        if (targetId && targetId !== initialSessionId) router.replace(`/studio/${targetId}`);
       } catch (e) {
         toast.error(e instanceof Error ? e.message : "Failed to load studio");
       } finally {
@@ -75,6 +84,47 @@ export function StudioShell({ sessionId: initialSessionId }: Props) {
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Persist last-viewed session so /studio bare path opens it next time.
+  useEffect(() => {
+    if (!activeSessionId || typeof window === "undefined") return;
+    try {
+      window.localStorage?.setItem(LAST_SESSION_KEY, activeSessionId);
+    } catch { /* storage unavailable (SSR / jsdom without storage) */ }
+  }, [activeSessionId]);
+
+  // ⌘B / Ctrl+B toggles the session sidebar
+  useEffect(() => {
+    function handler(e: KeyboardEvent) {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "b") {
+        e.preventDefault();
+        setSidebarOpen((v) => !v);
+      }
+    }
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, []);
+
+  // Background refresh: re-poll sessions when tab becomes visible — keeps
+  // the sidebar in sync if another tab / backend cron updated status.
+  useEffect(() => {
+    function onVisible() {
+      if (document.visibilityState === "visible") {
+        refreshSessions();
+      }
+    }
+    document.addEventListener("visibilitychange", onVisible);
+    return () => document.removeEventListener("visibilitychange", onVisible);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Refetch sessions list helper — called after mutations that change status/list.
+  async function refreshSessions() {
+    try {
+      const { sessions: ss } = await listSessions();
+      setSessions(ss);
+    } catch { /* non-fatal */ }
+  }
 
   // Load session detail whenever active session changes
   useEffect(() => {
@@ -85,6 +135,8 @@ export function StudioShell({ sessionId: initialSessionId }: Props) {
         setSession(s);
         setMessages(m);
         setMode(s.mode);
+        // Sync active resume with this session's linked resume (backend truth)
+        if (s.resume_id) setActiveResumeId(s.resume_id);
       } catch (e) {
         // Stale session id — create a fresh one so user can keep going
         toast.info("Starting a new session…");
@@ -115,7 +167,10 @@ export function StudioShell({ sessionId: initialSessionId }: Props) {
       const { session: s } = await createSession({ title: "New session", mode, resume_id: activeResumeId });
       setSessions((p) => [s, ...p]);
       setActiveSessionId(s.id);
-      router.replace(`/studio/${s.id}`);
+      // Use push so the new session is a real history entry — back button returns to prior session.
+      router.push(`/studio/${s.id}`);
+      setMessages([]);
+      setSession(s);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Could not create session");
     }
@@ -204,6 +259,15 @@ export function StudioShell({ sessionId: initialSessionId }: Props) {
     const content = chatDraft.trim();
     setChatDraft("");
     try {
+      // Ensure the backend session is linked to the resume the user picked.
+      // Without this the AI gets NO resume context even though the UI shows one.
+      if (activeResumeId && session && session.resume_id !== activeResumeId) {
+        try {
+          const { session: s } = await updateSession(activeSessionId, { resume_id: activeResumeId });
+          setSession(s);
+          setSessions((p) => p.map((x) => (x.id === s.id ? s : x)));
+        } catch { /* non-fatal — backend will still try */ }
+      }
       const { messages: newMsgs } = await sendMessage(activeSessionId, content);
       setMessages((p) => [...p, ...newMsgs]);
 
@@ -214,6 +278,10 @@ export function StudioShell({ sessionId: initialSessionId }: Props) {
           const all = await listResumes();
           setResumes(all.resumes);
         } catch { /* non-fatal */ }
+        // Trigger version-history reload + flash AI changes
+        setVersionRefresh((n) => n + 1);
+        setRecentAiDiff({ at: Date.now() });
+        setTimeout(() => setRecentAiDiff(null), 4000);
       }
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Send failed");
@@ -263,6 +331,14 @@ export function StudioShell({ sessionId: initialSessionId }: Props) {
     <div className="flex h-screen flex-col bg-background">
       {/* Top bar — navy brand strip matching landing */}
       <header className="flex h-14 items-center gap-1 border-b border-[hsl(var(--brand-navy)/0.9)] bg-[hsl(var(--brand-navy))] px-3 text-white">
+        <button
+          onClick={() => setSidebarOpen((v) => !v)}
+          className="mr-1 rounded-md p-1.5 text-white/70 hover:bg-white/10 hover:text-white transition-colors"
+          aria-label={sidebarOpen ? "Hide sessions" : "Show sessions"}
+          title={sidebarOpen ? "Hide sessions (⌘B)" : "Show sessions (⌘B)"}
+        >
+          {sidebarOpen ? <PanelLeftClose className="h-4 w-4" /> : <PanelLeft className="h-4 w-4" />}
+        </button>
         <Link href="/" className="mr-3 flex items-center gap-2">
           <Image src="/applybloom-logo.svg" alt="" width={22} height={22} />
           <span className="font-display text-sm font-semibold tracking-tight">
@@ -272,7 +348,16 @@ export function StudioShell({ sessionId: initialSessionId }: Props) {
         <div className="mx-1 h-5 w-px bg-white/20" />
         <div className="flex items-center gap-1 overflow-x-auto">
           {resumes.map((r) => (
-            <ResumeTab key={r.id} name={r.name} active={r.id === activeResumeId} onClick={() => setActiveResumeId(r.id)} />
+            <ResumeTab key={r.id} name={r.name} active={r.id === activeResumeId} onClick={async () => {
+              setActiveResumeId(r.id);
+              if (activeSessionId && session && session.resume_id !== r.id) {
+                try {
+                  const { session: s } = await updateSession(activeSessionId, { resume_id: r.id });
+                  setSession(s);
+                  setSessions((p) => p.map((x) => (x.id === s.id ? s : x)));
+                } catch { /* non-fatal */ }
+              }
+            }} />
           ))}
           <button
             onClick={() => setShowAddResume(true)}
@@ -303,11 +388,12 @@ export function StudioShell({ sessionId: initialSessionId }: Props) {
       </header>
 
       {/* 3-pane */}
-      <div className="grid flex-1 grid-cols-[280px_1fr_380px] overflow-hidden">
+      <div className={`grid min-h-0 flex-1 overflow-hidden ${sidebarOpen ? "grid-cols-[280px_1fr_380px]" : "grid-cols-[0px_1fr_380px]"}`}>
+        <div className={sidebarOpen ? "contents" : "hidden"}>
         <SessionSidebar
           sessions={sessions}
           activeSessionId={activeSessionId}
-          onSelect={(id) => { setActiveSessionId(id); router.replace(`/studio/${id}`); }}
+          onSelect={(id) => { if (id === activeSessionId) return; setActiveSessionId(id); router.push(`/studio/${id}`); }}
           onCreate={handleNewSession}
           onRename={async (id, title) => {
             try {
@@ -347,15 +433,29 @@ export function StudioShell({ sessionId: initialSessionId }: Props) {
           mode={mode}
           onModeChange={handleModeChange}
         />
+        </div>
 
         {/* Center: resume — soft neutral canvas with navy outline tint */}
         <main className="overflow-y-auto bg-[hsl(var(--brand-navy)/0.02)]">
           <div className="mx-auto max-w-3xl px-12 py-12">
             {activeResume ? (
-              <ResumeView resume={activeResume} onRename={async (name) => {
-                const { resume } = await updateResume(activeResume.id, { name });
-                setResumes((p) => p.map((x) => (x.id === resume.id ? resume : x)));
-              }} />
+              <div className="space-y-6">
+                <div className={recentAiDiff ? "ring-2 ring-[hsl(var(--brand-amber))] rounded-lg transition-all" : ""}>
+                  <ResumeView resume={activeResume} onRename={async (name) => {
+                    const { resume } = await updateResume(activeResume.id, { name });
+                    setResumes((p) => p.map((x) => (x.id === resume.id ? resume : x)));
+                  }} />
+                </div>
+                <div className="rounded-lg border border-border bg-background p-4">
+                  <ResumeVersionHistory
+                    resumeId={activeResume.id}
+                    refreshKey={versionRefresh}
+                    onRestored={(r) => {
+                      setResumes((p) => p.map((x) => (x.id === r.id ? r : x)));
+                    }}
+                  />
+                </div>
+              </div>
             ) : (
               <div className="rounded-lg border border-dashed border-border bg-background p-12 text-center">
                 <FileText className="mx-auto h-8 w-8 text-muted-foreground/40" />
@@ -369,7 +469,7 @@ export function StudioShell({ sessionId: initialSessionId }: Props) {
         </main>
 
         {/* Right: chat + actions */}
-        <aside className="flex flex-col border-l border-border/60">
+        <aside className="flex min-h-0 h-full flex-col border-l border-border/60">
           <div className="flex items-center justify-between border-b border-border/60 px-4 py-3">
             <div className="min-w-0 flex-1">
               <SessionTitleInline
@@ -409,7 +509,34 @@ export function StudioShell({ sessionId: initialSessionId }: Props) {
             </div>
           )}
 
-          <div ref={chatScroll} className="flex-1 overflow-y-auto p-4 space-y-3">
+          {/* Active context strip: shows which resume + job the AI actually has in-scope.
+              Truth-source = session.resume_id (backend linkage), NOT activeResumeId (UI-only). */}
+          {(() => {
+            const linkedResume = session?.resume_id ? resumes.find((r) => r.id === session.resume_id) ?? null : null;
+            const mismatch = !!activeResume && !!session && activeResume.id !== session.resume_id;
+            return (
+              <div className={`flex items-center gap-2 border-b border-border/40 px-4 py-1.5 text-[11px] ${mismatch ? "bg-amber-500/10 text-amber-800" : "bg-[hsl(var(--brand-amber)/0.08)] text-muted-foreground"}`}>
+                <FileText className="h-3 w-3 shrink-0" />
+                <span className="truncate">
+                  {linkedResume ? (
+                    <>AI sees: <strong className="text-foreground">{linkedResume.name}</strong></>
+                  ) : mismatch ? (
+                    <>Not yet linked — send a message to attach <strong className="text-foreground">{activeResume?.name}</strong></>
+                  ) : (
+                    <span className="italic">No resume attached — AI will chat without resume context</span>
+                  )}
+                </span>
+                {session?.job?.title && (
+                  <>
+                    <span className="mx-0.5">·</span>
+                    <span className="truncate">target: <strong className="text-foreground">{session.job.title}</strong></span>
+                  </>
+                )}
+              </div>
+            );
+          })()}
+
+          <div ref={chatScroll} className="min-h-0 flex-1 overflow-y-auto p-4 space-y-3">
             {messages.length === 0 ? (
               <div className="mx-auto flex h-full max-w-sm flex-col items-center justify-center text-center">
                 <MessageSquare className="h-8 w-8 text-muted-foreground/40" />
@@ -561,10 +688,24 @@ function MessageBubble({ msg }: { msg: ChatMessage }) {
     );
   }
   const isUser = msg.role === "user";
+  const isEmpty = !msg.content || !msg.content.trim() || msg.content.trim() === "(no response)";
+  if (isUser) {
+    return (
+      <div className="flex justify-end">
+        <div className="max-w-[85%] rounded-2xl px-3.5 py-2 text-sm bg-primary text-primary-foreground whitespace-pre-wrap break-words">
+          {msg.content}
+        </div>
+      </div>
+    );
+  }
+  // assistant
   return (
-    <div className={`flex ${isUser ? "justify-end" : "justify-start"}`}>
-      <div className={`max-w-[85%] rounded-2xl px-3.5 py-2 text-sm ${isUser ? "bg-primary text-primary-foreground" : "bg-secondary text-secondary-foreground"}`}>
-        {msg.content}
+    <div className="flex items-start gap-2 justify-start">
+      <div className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[hsl(var(--brand-navy))] ring-2 ring-[hsl(var(--brand-amber)/0.5)]">
+        <Image src="/applybloom-logo.svg" alt="ApplyBloom" width={16} height={16} />
+      </div>
+      <div className={`max-w-[85%] rounded-2xl px-3.5 py-2 text-sm whitespace-pre-wrap ${isEmpty ? "bg-secondary/40 italic text-muted-foreground" : "bg-secondary text-secondary-foreground"} break-words`}>
+        {isEmpty ? "The model didn't return anything — try rephrasing, or check that AI is configured." : msg.content}
       </div>
     </div>
   );
