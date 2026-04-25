@@ -10,6 +10,8 @@ import { handleSessionsRequest } from "@/api/v1/studio/sessions";
 import { handleUploadResumeRequest } from "@/api/v1/studio/upload-resume";
 import { handleCredentialsRequest } from "@/api/v1/credentials";
 import { handleResumeVersionsRequest } from "@/api/v1/resume-versions";
+import { handleProfileRequest } from "@/api/v1/profile";
+import { handleQAMemoryRequest } from "@/api/v1/qa-memory";
 import { dispatchQueueMessage } from "@/workers/dispatch-queue-message";
 
 function corsHeaders(origin: string | null): Record<string, string> {
@@ -112,6 +114,23 @@ export default {
         if (m === "GET" || m === "PATCH" || m === "DELETE") {
           return handleCredentialsRequest(request, env, { kind: "detail", method: m, id: credMatch[1] });
         }
+      }
+
+      // User profile
+      if (p === "/api/v1/profile") {
+        if (m === "GET" || m === "PUT" || m === "PATCH") return handleProfileRequest(request, env);
+      }
+
+      // Q&A memory
+      if (p === "/api/v1/qa-memory") {
+        if (m === "GET" || m === "POST") return handleQAMemoryRequest(request, env, { kind: "list", method: m });
+      }
+      if (p === "/api/v1/qa-memory/match" && m === "POST") {
+        return handleQAMemoryRequest(request, env, { kind: "match", method: "POST" });
+      }
+      const qaMatch = p.match(/^\/api\/v1\/qa-memory\/([^/]+)$/);
+      if (qaMatch && m === "DELETE") {
+        return handleQAMemoryRequest(request, env, { kind: "detail", method: "DELETE", id: qaMatch[1] });
       }
 
       return new Response(
