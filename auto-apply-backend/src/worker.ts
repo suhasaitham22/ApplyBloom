@@ -12,6 +12,9 @@ import { handleCredentialsRequest } from "@/api/v1/credentials";
 import { handleResumeVersionsRequest } from "@/api/v1/resume-versions";
 import { handleProfileRequest } from "@/api/v1/profile";
 import { handleQAMemoryRequest } from "@/api/v1/qa-memory";
+import { handleApplyRequest } from "@/api/v1/apply";
+import { handleQAPendingRequest } from "@/api/v1/qa-pending";
+import { handleEventsRequest } from "@/api/v1/events";
 import { dispatchQueueMessage } from "@/workers/dispatch-queue-message";
 
 function corsHeaders(origin: string | null): Record<string, string> {
@@ -131,6 +134,44 @@ export default {
       const qaMatch = p.match(/^\/api\/v1\/qa-memory\/([^/]+)$/);
       if (qaMatch && m === "DELETE") {
         return handleQAMemoryRequest(request, env, { kind: "detail", method: "DELETE", id: qaMatch[1] });
+      }
+
+      // Apply queue (Phase B)
+      if (p === "/api/v1/apply") {
+        if (m === "GET" || m === "POST") return handleApplyRequest(request, env, { kind: "list", method: m });
+      }
+      if (p === "/api/v1/apply/claim" && m === "POST") {
+        return handleApplyRequest(request, env, { kind: "claim", method: "POST" });
+      }
+      const applyIdMatch = p.match(/^\/api\/v1\/apply\/([^/]+)$/);
+      if (applyIdMatch && m === "GET") {
+        return handleApplyRequest(request, env, { kind: "detail", method: "GET", id: applyIdMatch[1] });
+      }
+      const applySubMatch = p.match(/^\/api\/v1\/apply\/([^/]+)\/(pause|cancel|report|events)$/);
+      if (applySubMatch) {
+        const id = applySubMatch[1];
+        const sub = applySubMatch[2];
+        if (sub === "events" && m === "GET") {
+          return handleEventsRequest(request, env, { kind: "apply", method: "GET", id });
+        }
+        if ((sub === "pause" || sub === "cancel" || sub === "report") && m === "POST") {
+          return handleApplyRequest(request, env, { kind: sub, method: "POST", id });
+        }
+      }
+
+      // Pending Q&A
+      if (p === "/api/v1/qa-pending") {
+        if (m === "GET" || m === "POST") return handleQAPendingRequest(request, env, { kind: "list", method: m });
+      }
+      const qaPendingAnswer = p.match(/^\/api\/v1\/qa-pending\/([^/]+)\/answer$/);
+      if (qaPendingAnswer && m === "POST") {
+        return handleQAPendingRequest(request, env, { kind: "answer", method: "POST", id: qaPendingAnswer[1] });
+      }
+
+      // Session events SSE
+      const sessionEvents = p.match(/^\/api\/v1\/sessions\/([^/]+)\/events$/);
+      if (sessionEvents && m === "GET") {
+        return handleEventsRequest(request, env, { kind: "session", method: "GET", id: sessionEvents[1] });
       }
 
       return new Response(

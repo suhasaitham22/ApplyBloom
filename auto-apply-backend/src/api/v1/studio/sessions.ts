@@ -90,6 +90,21 @@ export async function handleSessionsRequest(request: Request, env: Env, route: R
           const body = await safeJson(request);
           const content = typeof body?.content === "string" ? body.content : "";
           if (!content.trim()) return problem({ title: "Content required", status: 400 });
+
+          // Chat lock: while automation is running, reject free-form user messages.
+          // The client is expected to use /apply/:id/pause or /qa-pending/:id/answer
+          // instead. Control commands and Q&A answers flow through their own endpoints.
+          const preS = await getSession(env, userId, route.id);
+          if (!preS) return problem({ title: "Session not found", status: 404 });
+          if (preS.status === "running") {
+            return problem({
+              title: "Session is running",
+              status: 409,
+              code: "session_running",
+              detail: "Automation is running. Pause it to chat freely, or answer any pending Q&A from the dashboard.",
+            });
+          }
+
           const m = await appendMessage(env, userId, route.id, { role: "user", content });
 
           const s = await getSession(env, userId, route.id);
