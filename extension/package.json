@@ -1,0 +1,21 @@
+{
+  "name": "@applybloom/extension",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "vite build",
+    "dev": "vite build --watch",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@types/chrome": "^0.0.268",
+    "@types/node": "^20.11.0",
+    "@vitest/ui": "^3.2.4",
+    "jsdom": "^29.0.2",
+    "typescript": "^5.4.5",
+    "vite": "^5.2.10",
+    "vitest": "^3.2.4"
+  }
+}
