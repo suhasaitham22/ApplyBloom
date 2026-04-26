@@ -305,3 +305,96 @@ export const matchQAMemory = (question_text: string) =>
 
 export const deleteQAMemory = (id: string) =>
   call<{ deleted: true }>(`/api/v1/qa-memory/${id}`, { method: "DELETE" });
+
+
+// ── Phase B: apply queue + events ─────────────────────────────────────────
+
+export type ApplyStatus =
+  | "queued" | "claimed" | "running" | "needs_input"
+  | "submitted" | "failed" | "cancelled" | "paused";
+
+export type AtsProvider = "greenhouse" | "lever" | "ashby" | "generic";
+
+export interface ApplyRecord {
+  id: string;
+  user_id: string;
+  session_id: string | null;
+  job_key: string;
+  ats_provider: AtsProvider;
+  apply_url: string;
+  job_title: string | null;
+  company: string | null;
+  resume_id: string | null;
+  credential_id: string | null;
+  dry_run: boolean;
+  status: ApplyStatus;
+  priority: number;
+  error: string | null;
+  screenshot_urls: string[];
+  attempt_log: Array<{ at: string; step: string; note?: string }>;
+  claimed_by: string | null;
+  claimed_at: string | null;
+  started_at: string | null;
+  finished_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface QAPendingItem {
+  id: string;
+  apply_id: string;
+  session_id: string | null;
+  question_text: string;
+  question_type: string | null;
+  suggested_answer: string | null;
+  suggested_verdict: "auto" | "suggest" | "ask" | null;
+  answer: string | null;
+  answered_at: string | null;
+  created_at: string;
+}
+
+export const listApplies = (params?: { session_id?: string; status?: ApplyStatus[] }) => {
+  const q = new URLSearchParams();
+  if (params?.session_id) q.set("session_id", params.session_id);
+  for (const s of params?.status ?? []) q.append("status", s);
+  const qs = q.toString();
+  return call<{ items: ApplyRecord[] }>(`/api/v1/apply${qs ? `?${qs}` : ""}`);
+};
+
+export const enqueueApply = (input: {
+  session_id: string | null;
+  apply_url: string;
+  job_title?: string;
+  company?: string;
+  dry_run?: boolean;
+  priority?: number;
+}) => call<{ item: ApplyRecord }>("/api/v1/apply", {
+  method: "POST", body: JSON.stringify(input),
+});
+
+export const getApply = (id: string) =>
+  call<{ item: ApplyRecord }>(`/api/v1/apply/${id}`);
+
+export const pauseApply = (id: string) =>
+  call<{ item: ApplyRecord }>(`/api/v1/apply/${id}/pause`, { method: "POST" });
+
+export const cancelApply = (id: string) =>
+  call<{ item: ApplyRecord }>(`/api/v1/apply/${id}/cancel`, { method: "POST" });
+
+export const listPendingQA = (params?: { apply_id?: string }) => {
+  const q = new URLSearchParams();
+  if (params?.apply_id) q.set("apply_id", params.apply_id);
+  const qs = q.toString();
+  return call<{ items: QAPendingItem[] }>(`/api/v1/qa-pending${qs ? `?${qs}` : ""}`);
+};
+
+export const answerPendingQA = (id: string, answer: string) =>
+  call<{ item: QAPendingItem }>(`/api/v1/qa-pending/${id}/answer`, {
+    method: "POST", body: JSON.stringify({ answer }),
+  });
+
+/** SSE URL for a session — consumer builds EventSource against it. */
+export const sessionEventsUrl = (sessionId: string, since?: string) => {
+  const q = since ? `?since=${encodeURIComponent(since)}` : "";
+  return `${BASE}/api/v1/sessions/${sessionId}/events${q}`;
+};
