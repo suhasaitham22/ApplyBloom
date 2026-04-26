@@ -1,0 +1,69 @@
+{
+  "manifest_version": 3,
+  "name": "ApplyBloom",
+  "description": "Auto-apply assistant for Greenhouse, Lever, and Ashby job applications.",
+  "version": "0.1.0",
+  "permissions": [
+    "storage",
+    "tabs",
+    "scripting",
+    "activeTab",
+    "alarms"
+  ],
+  "host_permissions": [
+    "https://*.greenhouse.io/*",
+    "https://boards.greenhouse.io/*",
+    "https://job-boards.greenhouse.io/*",
+    "https://*.lever.co/*",
+    "https://*.ashbyhq.com/*",
+    "https://applybloom.pages.dev/*",
+    "https://api.applybloom.pages.dev/*",
+    "http://127.0.0.1:8787/*",
+    "http://localhost:8787/*"
+  ],
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "action": {
+    "default_popup": "popup/popup.html",
+    "default_title": "ApplyBloom",
+    "default_icon": {
+      "16": "icons/icon-16.png",
+      "48": "icons/icon-48.png",
+      "128": "icons/icon-128.png"
+    }
+  },
+  "icons": {
+    "16": "icons/icon-16.png",
+    "48": "icons/icon-48.png",
+    "128": "icons/icon-128.png"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://*.greenhouse.io/*",
+        "https://boards.greenhouse.io/*",
+        "https://job-boards.greenhouse.io/*"
+      ],
+      "js": ["content-scripts/greenhouse.js"],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": ["https://*.lever.co/*"],
+      "js": ["content-scripts/lever.js"],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": ["https://*.ashbyhq.com/*"],
+      "js": ["content-scripts/ashby.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "applybloom@applybloom.dev",
+      "strict_min_version": "109.0"
+    }
+  }
+}

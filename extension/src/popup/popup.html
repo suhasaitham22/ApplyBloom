@@ -1,0 +1,17 @@
+<!doctype html>
+<html>
+  <head><meta charset="utf-8" /><title>ApplyBloom</title></head>
+  <body style="font-family:system-ui;padding:16px;min-width:280px">
+    <h3 style="margin:0 0 8px">ApplyBloom</h3>
+    <div id="status" style="margin-bottom:12px;color:#6b7280">Loading...</div>
+    <div id="form">
+      <label style="display:block;font-size:12px;margin-top:8px">Backend URL</label>
+      <input id="baseUrl" value="http://127.0.0.1:8787" style="width:100%;padding:6px;border:1px solid #d1d5db;border-radius:4px"/>
+      <label style="display:block;font-size:12px;margin-top:8px">Token (user id in demo)</label>
+      <input id="token" value="demo-user" style="width:100%;padding:6px;border:1px solid #d1d5db;border-radius:4px"/>
+      <button id="connect" style="margin-top:12px;width:100%;padding:8px;background:#111827;color:#fff;border:0;border-radius:4px;cursor:pointer">Connect</button>
+      <button id="disconnect" style="margin-top:6px;width:100%;padding:8px;background:transparent;color:#111827;border:1px solid #d1d5db;border-radius:4px;cursor:pointer">Disconnect</button>
+    </div>
+    <script type="module" src="popup.js"></script>
+  </body>
+</html>
