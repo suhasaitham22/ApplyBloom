@@ -15,6 +15,8 @@ import { handleQAMemoryRequest } from "@/api/v1/qa-memory";
 import { handleApplyRequest } from "@/api/v1/apply";
 import { handleQAPendingRequest } from "@/api/v1/qa-pending";
 import { handleEventsRequest } from "@/api/v1/events";
+import { handleJobsRequest } from "@/api/v1/jobs";
+import { runJobDiscoveryCron } from "@/scheduled";
 import { dispatchQueueMessage } from "@/workers/dispatch-queue-message";
 
 function corsHeaders(origin: string | null): Record<string, string> {
@@ -174,6 +176,22 @@ export default {
         return handleEventsRequest(request, env, { kind: "session", method: "GET", id: sessionEvents[1] });
       }
 
+      // Jobs (Phase C)
+      if (p === "/api/v1/jobs" && m === "GET") {
+        return handleJobsRequest(request, env, { kind: "list", method: "GET" });
+      }
+      if (p === "/api/v1/jobs/refresh" && m === "POST") {
+        return handleJobsRequest(request, env, { kind: "refresh", method: "POST" });
+      }
+      const jobsMatchPatch = p.match(/^\/api\/v1\/jobs\/([^/]+)$/);
+      if (jobsMatchPatch && m === "PATCH") {
+        return handleJobsRequest(request, env, { kind: "patch", method: "PATCH", id: jobsMatchPatch[1] });
+      }
+      const jobsMatchApply = p.match(/^\/api\/v1\/jobs\/([^/]+)\/apply$/);
+      if (jobsMatchApply && m === "POST") {
+        return handleJobsRequest(request, env, { kind: "apply", method: "POST", id: jobsMatchApply[1] });
+      }
+
       return new Response(
         JSON.stringify({ title: "Not found", status: 404, detail: `No route for ${m} ${p}` }),
         { status: 404, headers: { "Content-Type": "application/problem+json" } },
@@ -181,6 +199,16 @@ export default {
     };
 
     return withCors(await route(), origin);
+  },
+
+  async scheduled(
+    _event: unknown,
+    env: Env,
+    ctx: { waitUntil: (p: Promise<unknown>) => void },
+  ): Promise<void> {
+    ctx.waitUntil(runJobDiscoveryCron(env).then((r) => {
+      console.log("[cron] job discovery", r);
+    }).catch((e) => console.error("[cron] failed", e)));
   },
 
   async queue(batch: MessageBatch<unknown>, env: Env): Promise<void> {
@@ -194,4 +222,4 @@ export default {
       }
     }
   },
-} satisfies ExportedHandler<Env>;
+} as ExportedHandler<Env> & { scheduled?: unknown };
