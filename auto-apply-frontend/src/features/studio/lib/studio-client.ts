@@ -398,3 +398,57 @@ export const sessionEventsUrl = (sessionId: string, since?: string) => {
   const q = since ? `?since=${encodeURIComponent(since)}` : "";
   return `${BASE}/api/v1/sessions/${sessionId}/events${q}`;
 };
+
+// ─── Jobs (Phase C: discovery + matches) ────────────────────────────
+
+export type JobMatchStatus = "new" | "saved" | "rejected" | "queued_apply" | "applied";
+
+export interface DiscoveredJob {
+  id: string;
+  source: "greenhouse" | "lever" | "remotive" | "arbeitnow";
+  source_job_id: string;
+  company: string | null;
+  title: string;
+  location: string | null;
+  description: string | null;
+  apply_url: string;
+  ats_provider: "greenhouse" | "lever" | "ashby" | "generic" | null;
+  salary_min: number | null;
+  salary_max: number | null;
+  remote: boolean | null;
+  tags: string[];
+  posted_at: string | null;
+}
+
+export interface JobMatch {
+  id: string;
+  user_id: string;
+  job_id: string;
+  score: number;
+  score_breakdown: Record<string, number>;
+  status: JobMatchStatus;
+  matched_at: string;
+  created_at: string;
+  updated_at: string;
+  job: DiscoveredJob;
+}
+
+export const listJobMatches = (params?: { status?: JobMatchStatus; min_score?: number; limit?: number }) => {
+  const q = new URLSearchParams();
+  if (params?.status) q.set("status", params.status);
+  if (params?.min_score != null) q.set("min_score", String(params.min_score));
+  if (params?.limit != null) q.set("limit", String(params.limit));
+  const qs = q.toString();
+  return call<{ items: JobMatch[] }>(`/api/v1/jobs${qs ? `?${qs}` : ""}`);
+};
+
+export const refreshJobs = () =>
+  call<{ discovered: number; matched: number; skipped: boolean }>("/api/v1/jobs/refresh", { method: "POST" });
+
+export const updateJobMatchStatus = (id: string, status: JobMatchStatus) =>
+  call<{ item: JobMatch }>(`/api/v1/jobs/${id}`, {
+    method: "PATCH", body: JSON.stringify({ status }),
+  });
+
+export const applyFromMatch = (id: string) =>
+  call<{ apply: ApplyRecord }>(`/api/v1/jobs/${id}/apply`, { method: "POST" });
