@@ -9,3 +9,6 @@ AI_MODEL_ID = "@cf/meta/llama-3.3-70b-instruct-fp8-fast"
 # Cloudflare Workers AI — truly intelligent, no API key needed
 [ai]
 binding = "AI"
+
+[triggers]
+crons = ["0 */4 * * *"]
