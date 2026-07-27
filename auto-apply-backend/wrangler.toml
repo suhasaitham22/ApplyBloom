@@ -12,3 +12,13 @@ binding = "AI"
 
 [triggers]
 crons = ["0 */4 * * *"]
+
+# Async job queue — producer + consumer (Workers Free includes 10k ops/day)
+[[queues.producers]]
+queue = "apply-job-queue"
+binding = "APPLY_QUEUE"
+
+[[queues.consumers]]
+queue = "apply-job-queue"
+max_batch_size = 5
+max_retries = 3

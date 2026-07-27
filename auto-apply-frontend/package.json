@@ -13,9 +13,13 @@
     "start:prod": "next start",
     "lint": "next lint",
     "test": "vitest run --configLoader native",
-    "test:watch": "vitest --configLoader native"
+    "test:watch": "vitest --configLoader native",
+    "preview": "opennextjs-cloudflare build && opennextjs-cloudflare preview",
+    "deploy:cf": "opennextjs-cloudflare build && opennextjs-cloudflare deploy",
+    "cf-typegen": "wrangler types --env-interface CloudflareEnv cloudflare-env.d.ts"
   },
   "dependencies": {
+    "@opennextjs/cloudflare": "1.20.2",
     "@platejs/basic-nodes": "^52.3.10",
     "@platejs/link": "^52.3.17",
     "@platejs/math": "^52.3.10",
@@ -35,7 +39,7 @@
     "katex": "^0.16.45",
     "lucide-react": "^1.8.0",
     "mammoth": "^1.12.0",
-    "next": "^15.0.0",
+    "next": "15.5.21",
     "pdfjs-dist": "^5.6.205",
     "platejs": "^52.3.21",
     "react": "^19.0.0",
@@ -46,6 +50,7 @@
     "tailwind-merge": "^3.5.0",
     "tailwindcss-animate": "^1.0.7",
     "three": "^0.184.0",
+    "wrangler": "4.114.0",
     "zustand": "^5.0.12"
   },
   "devDependencies": {
